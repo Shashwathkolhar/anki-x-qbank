@@ -46,7 +46,16 @@ async function anki(action, params = {}) {
 
 // ---------- Claude ----------
 
+// Haiku 4.5 still accepts an assistant "{" prefill to force JSON; Sonnet 5 /
+// Opus 5 reject prefill entirely, so they get a plain request instead and we
+// rely on the JSON-only instruction + tolerant parsing.
+function supportsPrefill(model) {
+  return model.includes("haiku");
+}
+
 async function claude(settings, system, userText, maxTokens = 1500, imageB64 = null, modelOverride = null) {
+  const model = modelOverride || settings.model || DEFAULT_MODEL;
+  const prefill = supportsPrefill(model);
   const userContent = imageB64
     ? [
         {
@@ -56,6 +65,8 @@ async function claude(settings, system, userText, maxTokens = 1500, imageB64 = n
         { type: "text", text: userText },
       ]
     : userText;
+  const messages = [{ role: "user", content: userContent }];
+  if (prefill) messages.push({ role: "assistant", content: "{" });
   const res = await fetch(CLAUDE_URL, {
     method: "POST",
     headers: {
@@ -65,14 +76,12 @@ async function claude(settings, system, userText, maxTokens = 1500, imageB64 = n
       "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: modelOverride || settings.model || DEFAULT_MODEL,
-      max_tokens: maxTokens,
+      model,
+      // Thinking-enabled models (Sonnet/Opus) spend output tokens on
+      // reasoning before the JSON, so give them room.
+      max_tokens: prefill ? maxTokens : Math.max(maxTokens, 6000),
       system,
-      messages: [
-        { role: "user", content: userContent },
-        // Prefill "{" so the reply can only continue as JSON.
-        { role: "assistant", content: "{" },
-      ],
+      messages,
     }),
   });
   if (!res.ok) {
@@ -80,7 +89,12 @@ async function claude(settings, system, userText, maxTokens = 1500, imageB64 = n
     throw new Error(`Claude API error ${res.status}: ${body.slice(0, 300)}`);
   }
   const data = await res.json();
-  return "{" + (data.content?.[0]?.text ?? "");
+  // Thinking models emit thinking blocks before the text block — take only text.
+  const text = (data.content || [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+  return (prefill ? "{" : "") + text;
 }
 
 // ---------- screenshot (for video-based questions, e.g. YouTube) ----------
@@ -246,7 +260,7 @@ You are given the raw visible text of a qbank question page (question stem, answ
 
 Return {"answer": "", "facts": [], "searches": []} ONLY if the content clearly contains no medical subject matter at all (e.g. a homepage, settings page, or unrelated video). When in doubt, extract — a partial question stem is enough to work with.
 
-First, work through the differential: in "differential", write one short line per answer choice, weighing it against the specific clinical details (age, timeline, exam, labs, imaging). QUOTE the stem's exact words for key findings (rash character, lab values, imaging) — never substitute the classic textbook finding for what the stem actually says; a reworded finding is how the wrong answer wins. Only after weighing every choice, commit to the single best answer. If an explanation is present in the text, it settles the answer — use it.
+First, work through the differential. If the question includes an image (x-ray, CT, ECG, photo), make the FIRST entry of "differential" a one-line description of what the image actually shows. Then write one short line per answer choice, weighing it against the specific clinical details (age, timeline, exam, labs, imaging). QUOTE the stem's exact words for key findings (rash character, lab values, imaging) — never substitute the classic textbook finding for what the stem actually says; a reworded finding is how the wrong answer wins. Only after weighing every choice, commit to the single best answer. If an explanation is present in the text, it settles the answer — use it.
 
 Then identify the specific facts this question tests. Put facts about the CORRECT answer and the main teaching point first, then one or two facts about the most important distractor choices. For each fact, produce search terms likely to appear on the matching Anki cards — correct-answer terms first. Use standard medical terminology and include synonyms/alternate names (generic drug names, both eponym and descriptive names, etc.). Each term should be 1-3 words.
 
@@ -280,6 +294,7 @@ If nothing matches, return {"matches": []}.`;
 async function findMatches(pageText, imageB64 = null) {
   const settings = await getSettings();
   const useApi = settings.mode !== "basic";
+  const modelUsed = useApi ? settings.model || DEFAULT_MODEL : "basic";
   if (useApi && !settings.apiKey) {
     throw new Error(
       "No Claude API key set. Right-click the extension icon → Options, and paste your key (or switch to the free mode)."
@@ -334,7 +349,7 @@ async function findMatches(pageText, imageB64 = null) {
   }
   console.log("[Qbank→Anki] mode:", settings.mode, "| answer:", answer, "| facts:", facts, "| crop boxes:", regions);
   if (!searches.length)
-    return { answer, facts, regions, candidates: [], debug: { notesFound: 0 } };
+    return { answer, facts, regions, model: modelUsed, candidates: [], debug: { notesFound: 0 } };
 
   // Run the Anki searches in parallel (suspended cards only, optional deck restriction).
   const termSets = searches
@@ -378,7 +393,7 @@ async function findMatches(pageText, imageB64 = null) {
     noteIds = await runSearches("");
   }
   if (!noteIds.length)
-    return { answer, facts, regions, candidates: [], debug: { notesFound: 0 } };
+    return { answer, facts, regions, model: modelUsed, candidates: [], debug: { notesFound: 0 } };
 
   const notes = await anki("notesInfo", {
     notes: noteIds.slice(0, MAX_CANDIDATES),
@@ -393,6 +408,7 @@ async function findMatches(pageText, imageB64 = null) {
       answer,
       facts,
       regions,
+      model: modelUsed,
       candidates: numbered.slice(0, 25).map((n) => ({
         noteId: n.noteId,
         text: n.text,
@@ -435,7 +451,7 @@ async function findMatches(pageText, imageB64 = null) {
   const rank = (c) => (c.group === "answer" ? 0 : 2) + (c.confidence === "high" ? 0 : 1);
   candidates.sort((a, b) => rank(a) - rank(b));
 
-  return { answer, facts, regions, candidates, debug: { notesFound: noteIds.length } };
+  return { answer, facts, regions, model: modelUsed, candidates, debug: { notesFound: noteIds.length } };
 }
 
 async function unsuspendNotes(noteIds, shotB64, windowId, canCapture, regions) {
@@ -564,12 +580,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     try {
       if (msg.type === "findMatches") {
         if (msg.cacheKey) {
-          // Video flow: serve the prefetched run if there is one.
-          const cached = await freshCacheEntry(msg.cacheKey);
+          // Video flow: serve the prefetched run if there is one. The key
+          // includes the model/mode so changing settings invalidates stale
+          // results instead of serving them.
+          const s = await getSettings();
+          const key = msg.cacheKey + "|" + (s.mode === "basic" ? "basic" : s.model);
+          const cached = await freshCacheEntry(key);
           const entry =
             cached ||
             (await runAndCacheShot(
-              msg.cacheKey,
+              key,
               msg.text,
               msg.region,
               _sender.tab?.windowId
@@ -592,10 +612,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         if (settings.prefetch && (settings.apiKey || settings.mode === "basic")) {
           if (msg.cacheKey) {
             // Video prefetch (pause / near-end): skip if already fresh.
-            freshCacheEntry(msg.cacheKey).then((hit) => {
+            const key =
+              msg.cacheKey + "|" + (settings.mode === "basic" ? "basic" : settings.model);
+            freshCacheEntry(key).then((hit) => {
               if (!hit)
                 runAndCacheShot(
-                  msg.cacheKey,
+                  key,
                   msg.text,
                   msg.region,
                   _sender.tab?.windowId

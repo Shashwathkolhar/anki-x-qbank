@@ -92,6 +92,15 @@
     return d.innerHTML;
   }
 
+  function modelLabel(m) {
+    if (!m) return "";
+    if (m === "basic") return "keyword mode (no AI)";
+    if (m.includes("opus")) return "Opus";
+    if (m.includes("sonnet")) return "Sonnet";
+    if (m.includes("haiku")) return "Haiku";
+    return m;
+  }
+
   // ---------- page text extraction ----------
 
   function getYouTubeText() {
@@ -288,7 +297,7 @@
               : "Either these cards are already unsuspended, or the deck doesn't cover this fact."
           }</p>
           ${factsHtml(facts)}
-          <p class="qa-muted" style="font-size:11px">${facts.length} facts · ${searched} candidate notes searched</p>
+          <p class="qa-muted" style="font-size:11px">${facts.length} facts · ${searched} candidate notes searched${res.model ? " · answered by " + esc(modelLabel(res.model)) : ""}</p>
         </div>`);
       wireClose();
       return;
@@ -324,6 +333,7 @@
           Select everything
         </label>
         <div class="qa-list">${rows}</div>
+        ${res.model ? `<p class="qa-muted" style="font-size:11px;margin:8px 0 0">answered by ${esc(modelLabel(res.model))}</p>` : ""}
       </div>
       <div class="qa-foot">
         <button id="qa-unsuspend" class="qa-primary">Unsuspend selected</button>
