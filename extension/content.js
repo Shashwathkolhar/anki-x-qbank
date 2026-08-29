@@ -294,17 +294,24 @@
       return;
     }
 
-    const rows = candidates
-      .map(
-        (c) => `
+    const row = (c, checked) => `
         <label class="qa-row">
-          <input type="checkbox" data-note="${c.noteId}" ${c.confidence === "high" ? "checked" : ""}>
+          <input type="checkbox" data-note="${c.noteId}" ${checked ? "checked" : ""}>
           <span class="qa-badge qa-${c.confidence}">${c.confidence}</span>
           <span class="qa-card-text">${esc(c.text)}
             <small class="qa-muted">${esc(c.why)}</small></span>
-        </label>`
-      )
-      .join("");
+        </label>`;
+    // Correct-answer cards first (pre-checked when high confidence); cards
+    // about the other answer choices in their own section, unchecked.
+    const answerCards = candidates.filter((c) => c.group !== "option");
+    const optionCards = candidates.filter((c) => c.group === "option");
+    const rows =
+      answerCards.length && optionCards.length
+        ? `<div class="qa-sect">Correct answer</div>` +
+          answerCards.map((c) => row(c, c.confidence === "high")).join("") +
+          `<div class="qa-sect">Other options</div>` +
+          optionCards.map((c) => row(c, false)).join("")
+        : candidates.map((c) => row(c, c.confidence === "high")).join("");
 
     render(`
       <div class="qa-head"><span>Qbank → Anki — ${candidates.length} match${candidates.length === 1 ? "" : "es"}</span>

@@ -86,11 +86,13 @@
   <input type="password" id="apiKey" placeholder="sk-ant-...">
   <div class="hint">From console.anthropic.com → API keys. Stays on this computer. Not needed for the free mode.</div>
 
-  <label class="head" for="model">Model</label>
+  <label class="head" for="model">Model for reading and answering the question</label>
   <select id="model">
-    <option value="claude-haiku-4-5-20251001">Haiku — fast and cheap</option>
-    <option value="claude-sonnet-5">Sonnet — smarter, slower, pricier</option>
+    <option value="claude-haiku-4-5-20251001">Haiku — fastest and cheapest, misses hard questions sometimes</option>
+    <option value="claude-sonnet-5">Sonnet — much better clinical reasoning (recommended)</option>
+    <option value="claude-opus-5">Opus — strongest, a few cents per question</option>
   </select>
+  <div class="hint">Card matching always runs on Haiku, so picking a smarter model here only raises the cost of the answering step.</div>
 
   <label class="head" for="deck">Anki deck to search</label>
   <select id="deck">

@@ -46,7 +46,7 @@ async function anki(action, params = {}) {
 
 // ---------- Claude ----------
 
-async function claude(settings, system, userText, maxTokens = 1500, imageB64 = null) {
+async function claude(settings, system, userText, maxTokens = 1500, imageB64 = null, modelOverride = null) {
   const userContent = imageB64
     ? [
         {
@@ -65,7 +65,7 @@ async function claude(settings, system, userText, maxTokens = 1500, imageB64 = n
       "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: settings.model || DEFAULT_MODEL,
+      model: modelOverride || settings.model || DEFAULT_MODEL,
       max_tokens: maxTokens,
       system,
       messages: [
@@ -246,14 +246,15 @@ You are given the raw visible text of a qbank question page (question stem, answ
 
 Return {"answer": "", "facts": [], "searches": []} ONLY if the content clearly contains no medical subject matter at all (e.g. a homepage, settings page, or unrelated video). When in doubt, extract — a partial question stem is enough to work with.
 
-First, determine the correct answer. If an explanation is present, take it from there. If only the question stem and answer choices are shown (common for video frames), answer the question yourself using your medical knowledge — commit to the single best choice.
+First, work through the differential: in "differential", write one short line per answer choice, weighing it against the specific clinical details (age, timeline, exam, labs, imaging). QUOTE the stem's exact words for key findings (rash character, lab values, imaging) — never substitute the classic textbook finding for what the stem actually says; a reworded finding is how the wrong answer wins. Only after weighing every choice, commit to the single best answer. If an explanation is present in the text, it settles the answer — use it.
 
-Then identify the specific facts this question tests, based on the correct answer (the main teaching point plus important secondary facts). For each fact, produce search terms likely to appear on the matching Anki cards. Use standard medical terminology and include synonyms/alternate names (generic drug names, both eponym and descriptive names, etc.). Each term should be 1-3 words.
+Then identify the specific facts this question tests. Put facts about the CORRECT answer and the main teaching point first, then one or two facts about the most important distractor choices. For each fact, produce search terms likely to appear on the matching Anki cards — correct-answer terms first. Use standard medical terminology and include synonyms/alternate names (generic drug names, both eponym and descriptive names, etc.). Each term should be 1-3 words.
 
 If given an image that contains significant non-question content (a person/webcam, channel art, decorations), also return "crop_boxes": up to two tight bounding boxes — the first around the question stem text, the second around the answer options — each as [x, y, width, height] in PERCENT (0-100) of the image dimensions. Omit "crop_boxes" or use [] when the image is already mostly question content.
 
-Respond with ONLY this JSON, no other text:
+Respond with ONLY this JSON, no other text (differential MUST come first):
 {
+  "differential": ["<choice> — <one-line for/against>", ...],
   "answer": "<the correct answer choice> — <justification under 15 words>",
   "facts": ["<concise statement of each tested fact>", ...],
   "searches": [["term", "synonym", ...], ...],
@@ -268,8 +269,10 @@ You are given the facts the question tested and a numbered list of candidate Ank
 
 Select ONLY cards that directly test one of those facts. Be selective: a card that merely mentions a related topic does not count. Confidence "high" = the card tests exactly a listed fact; "medium" = closely related and probably worth unsuspending.
 
+Also label each match's "group": "answer" if the card tests the correct answer or the question's main teaching point; "option" if it instead tests one of the other answer choices (the differential).
+
 Respond with ONLY this JSON, no other text:
-{"matches": [{"i": <card number>, "confidence": "high"|"medium", "why": "<under 10 words>"}, ...]}
+{"matches": [{"i": <card number>, "confidence": "high"|"medium", "group": "answer"|"option", "why": "<under 10 words>"}, ...]}
 If nothing matches, return {"matches": []}.`;
 
 // ---------- main flows ----------
@@ -298,7 +301,7 @@ async function findMatches(pageText, imageB64 = null) {
       "QBANK PAGE TEXT:\n\n" +
       (pageText || "(no text — use the screenshot)").slice(0, 6000);
     let extracted = parseJson(
-      await claude(settings, SYSTEM_EXTRACT, stage1User, 800, imageB64)
+      await claude(settings, SYSTEM_EXTRACT, stage1User, 1100, imageB64)
     );
     if (
       (!extracted.facts?.length || !extracted.searches?.length) &&
@@ -312,7 +315,7 @@ async function findMatches(pageText, imageB64 = null) {
           SYSTEM_EXTRACT +
             "\n\nIMPORTANT: This content DOES contain a medical question or teaching material. Empty arrays are not an acceptable answer here — extract the facts and searches now.",
           stage1User,
-          800,
+          1100,
           imageB64
         )
       );
@@ -404,11 +407,17 @@ async function findMatches(pageText, imageB64 = null) {
   const rankRaw = await claude(
     settings,
     SYSTEM_RANK,
-    "FACTS TESTED:\n" +
+    "CORRECT ANSWER: " +
+      (answer || "(not determined)") +
+      "\n\nFACTS TESTED:\n" +
       facts.map((f) => "- " + f).join("\n") +
       "\n\nCANDIDATE CARDS:\n" +
       numbered.map((n) => `[${n.i}] ${n.text}`).join("\n"),
-    1000
+    1000,
+    null,
+    // Ranking is mechanical — always run it on Haiku so a smarter answering
+    // model doesn't multiply the cost.
+    DEFAULT_MODEL
   );
   const { matches = [] } = parseJson(rankRaw);
 
@@ -419,9 +428,12 @@ async function findMatches(pageText, imageB64 = null) {
       noteId: byIndex.get(m.i).noteId,
       text: byIndex.get(m.i).text,
       confidence: m.confidence === "high" ? "high" : "medium",
+      group: m.group === "option" ? "option" : "answer",
       why: String(m.why || "").slice(0, 80),
     }));
-  candidates.sort((a, b) => (a.confidence === b.confidence ? 0 : a.confidence === "high" ? -1 : 1));
+  // Correct-answer cards first, then other options; high before medium.
+  const rank = (c) => (c.group === "answer" ? 0 : 2) + (c.confidence === "high" ? 0 : 1);
+  candidates.sort((a, b) => rank(a) - rank(b));
 
   return { answer, facts, regions, candidates, debug: { notesFound: noteIds.length } };
 }
