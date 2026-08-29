@@ -1,0 +1,221 @@
+#qa-fab {
+  position: fixed;
+  right: 6px;
+  bottom: 72px;
+  z-index: 2147483646;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: #1a56db;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+#qa-fab:hover {
+  background: #1648b8;
+  transform: scale(1.06);
+}
+#qa-fab svg {
+  display: block;
+}
+
+#qa-overlay {
+  position: fixed;
+  right: 6px;
+  bottom: 116px;
+  z-index: 2147483647;
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  color: #1f2937;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  font: 14px/1.45 -apple-system, system-ui, sans-serif;
+  overflow: hidden;
+}
+
+#qa-overlay .qa-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: #1a56db;
+  color: #fff;
+  font-weight: 600;
+}
+#qa-overlay .qa-x {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+#qa-overlay .qa-body {
+  padding: 12px 14px;
+  overflow-y: auto;
+}
+#qa-overlay .qa-center {
+  text-align: center;
+  padding: 24px 14px;
+}
+
+#qa-overlay .qa-spinner {
+  width: 26px;
+  height: 26px;
+  margin: 0 auto 10px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #1a56db;
+  border-radius: 50%;
+  animation: qa-spin 0.8s linear infinite;
+}
+@keyframes qa-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#qa-overlay .qa-answer {
+  background: #eff6ff;
+  border-left: 3px solid #1a56db;
+  border-radius: 6px;
+  padding: 7px 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #1e3a8a;
+}
+
+#qa-snip {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  cursor: crosshair;
+  background: rgba(0, 0, 0, 0.25);
+}
+#qa-snip-box {
+  position: absolute;
+  display: none;
+  border: 2px dashed #fff;
+  background: rgba(26, 86, 219, 0.15);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.1);
+}
+#qa-snip-hint {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(17, 24, 39, 0.9);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font: 600 13px/1.4 -apple-system, system-ui, sans-serif;
+}
+
+#qa-overlay .qa-facts {
+  margin-bottom: 10px;
+  color: #4b5563;
+}
+#qa-overlay .qa-facts summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+#qa-overlay .qa-facts ul {
+  margin: 6px 0 0 18px;
+  padding: 0;
+  font-size: 13px;
+}
+
+#qa-overlay .qa-selectall {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+#qa-overlay .qa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#qa-overlay .qa-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+}
+#qa-overlay .qa-row:hover {
+  background: #f9fafb;
+}
+#qa-overlay .qa-row input {
+  margin-top: 3px;
+}
+#qa-overlay .qa-card-text {
+  display: block;
+  font-size: 13px;
+}
+#qa-overlay .qa-card-text small {
+  display: block;
+  margin-top: 2px;
+}
+#qa-overlay .qa-muted {
+  color: #6b7280;
+}
+
+#qa-overlay .qa-badge {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+#qa-overlay .qa-high {
+  background: #def7ec;
+  color: #03543f;
+}
+#qa-overlay .qa-medium {
+  background: #fdf6b2;
+  color: #723b13;
+}
+
+#qa-overlay .qa-foot {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid #e5e7eb;
+}
+#qa-overlay .qa-foot button {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  font: 600 13px/1 -apple-system, system-ui, sans-serif;
+  cursor: pointer;
+}
+#qa-overlay .qa-foot .qa-primary {
+  background: #1a56db;
+  border-color: #1a56db;
+  color: #fff;
+}
+#qa-overlay .qa-foot .qa-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

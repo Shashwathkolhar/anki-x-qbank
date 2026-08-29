@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Anki x Qbank — Options</title>
+  <style>
+    body {
+      font: 14px/1.5 -apple-system, system-ui, sans-serif;
+      color: #1f2937;
+      max-width: 560px;
+      margin: 32px auto;
+      padding: 0 16px;
+    }
+    h1 { font-size: 20px; }
+    label.head { display: block; font-weight: 600; margin: 18px 0 4px; }
+    input[type="text"], input[type="password"], select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    .hint { color: #6b7280; font-size: 12.5px; margin-top: 4px; }
+    .choice {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      cursor: pointer;
+    }
+    .choice input { margin-top: 3px; }
+    .choice b { display: block; }
+    .choice span { color: #6b7280; font-size: 12.5px; }
+    label.check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      margin: 18px 0 4px;
+    }
+    button {
+      margin-top: 22px;
+      padding: 9px 18px;
+      border-radius: 8px;
+      border: none;
+      background: #1a56db;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #fff;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      margin-left: 8px;
+    }
+    #status { margin-left: 12px; font-weight: 600; }
+    .ok { color: #047857; }
+    .err { color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <h1>Anki x Qbank</h1>
+
+  <label class="head">How to match cards</label>
+  <label class="choice">
+    <input type="radio" name="mode" value="api" checked>
+    <div>
+      <b>With Claude (recommended)</b>
+      <span>Claude reads the question — even inside a video — works out the answer, and picks only the cards that truly match.</span>
+    </div>
+  </label>
+  <label class="choice">
+    <input type="radio" name="mode" value="basic">
+    <div>
+      <b>Without Claude (free, no API key)</b>
+      <span>Searches your deck for keywords taken from the page text. Downsides: more wrong matches to untick yourself, can't read questions inside videos, no answer shown.</span>
+    </div>
+  </label>
+
+  <label class="head" for="apiKey">Claude API key</label>
+  <input type="password" id="apiKey" placeholder="sk-ant-...">
+  <div class="hint">From console.anthropic.com → API keys. Stays on this computer. Not needed for the free mode.</div>
+
+  <label class="head" for="model">Model</label>
+  <select id="model">
+    <option value="claude-haiku-4-5-20251001">Haiku — fast and cheap</option>
+    <option value="claude-sonnet-5">Sonnet — smarter, slower, pricier</option>
+  </select>
+
+  <label class="head" for="deck">Anki deck to search</label>
+  <select id="deck">
+    <option value="">All decks</option>
+  </select>
+  <div class="hint">Anki must be open to load the list. "All decks" searches everything.</div>
+
+  <label class="check">
+    <input type="checkbox" id="prefetch" checked style="width:auto;">
+    Start matching early
+  </label>
+  <div class="hint">Runs the search while you read, so results appear instantly when you click.</div>
+
+  <label class="check">
+    <input type="checkbox" id="pasteShot" checked style="width:auto;">
+    Add a screenshot of the question to unsuspended notes
+  </label>
+  <div class="hint">The picture goes into the field below. Nothing already in the field is overwritten.</div>
+
+  <label class="head" for="pasteField">Field for the screenshot</label>
+  <select id="pasteField">
+    <option value="Lecture Notes">Lecture Notes</option>
+    <option value="Missed Questions">Missed Questions</option>
+    <option value="Extra">Extra</option>
+  </select>
+
+  <label class="head" for="tag">Tag for unsuspended notes</label>
+  <input type="text" id="tag" value="qbank">
+  <div class="hint">So you can find them later in Anki. Leave empty for no tag.</div>
+
+  <div>
+    <button id="save">Save</button>
+    <button id="loadDecks" class="secondary">Load decks from Anki</button>
+    <span id="status"></span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

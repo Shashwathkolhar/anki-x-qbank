@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font: 13.5px/1.45 -apple-system, system-ui, sans-serif;
+      color: #1f2937;
+      width: 280px;
+      margin: 0;
+      padding: 14px;
+    }
+    h1 {
+      font-size: 14px;
+      margin: 0 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .find {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      background: #1a56db;
+      color: #fff;
+      font-weight: 700;
+      font-size: 13.5px;
+      cursor: pointer;
+    }
+    .find:hover { background: #1648b8; }
+    .site {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .host {
+      font-weight: 700;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    label.toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      cursor: pointer;
+    }
+    .hint { color: #6b7280; font-size: 12px; margin: 2px 0 0 24px; }
+    .footer {
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12.5px;
+    }
+    a { color: #1a56db; cursor: pointer; text-decoration: none; }
+    .na { color: #9ca3af; font-size: 12.5px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>
+    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="#1a56db" d="M12 1.8c.35 0 .67.21.81.53l2.29 5.2 5.66.55c.72.07 1.01.96.47 1.44l-4.26 3.79 1.24 5.55c.16.7-.6 1.25-1.22.89L12 16.85l-4.99 2.9c-.62.36-1.38-.19-1.22-.89l1.24-5.55-4.26-3.79c-.54-.48-.25-1.37.47-1.44l5.66-.55 2.29-5.2c.14-.32.46-.53.81-.53z"/></svg>
+    Anki x Qbank
+  </h1>
+
+  <button class="find" id="find">🔍 Find Anki cards on this page</button>
+
+  <div class="site" id="siteSection">
+    <div class="host" id="host">…</div>
+    <label class="toggle">
+      <input type="checkbox" id="btnToggle">
+      Show floating button on this site
+    </label>
+    <label class="toggle">
+      <input type="checkbox" id="pfToggle">
+      Auto-prefetch on this site
+    </label>
+    <div class="hint">Prefetch starts matching while you read, so clicks feel instant — leave it off for casual browsing sites.</div>
+    <div class="na" id="na" hidden>Not available on this page.</div>
+  </div>
+
+  <div class="footer">
+    <a id="options">⚙️ Options</a>
+    <span id="builtin" hidden style="color:#6b7280">Mehlman: always on</span>
+    <span id="ver" style="color:#9ca3af"></span>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
