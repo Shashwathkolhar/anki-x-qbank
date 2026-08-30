@@ -654,6 +654,26 @@ async function runAndCacheShot(cacheKey, text, region, windowId) {
   return run;
 }
 
+// Re-check each candidate's live suspend state right before showing results —
+// a cached result may predate an unsuspend, and a stale checkbox invites
+// double-unsuspending or hides that a card is already in rotation.
+async function refreshAlready(result) {
+  const c = result?.candidates;
+  if (!c?.length) return result;
+  try {
+    const q =
+      "is:suspended (" + c.map((x) => "nid:" + x.noteId).join(" or ") + ")";
+    const stillSuspended = new Set(await anki("findNotes", { query: q }));
+    for (const x of c) x.already = !stillSuspended.has(x.noteId);
+    const rank = (x) =>
+      (x.group === "option" ? 8 : 0) + (x.already ? 4 : 0) + (x.confidence === "high" ? 0 : 1);
+    c.sort((a, b) => rank(a) - rank(b));
+  } catch (e) {
+    console.warn("[Qbank→Anki] suspend-state refresh failed:", e.message);
+  }
+  return result;
+}
+
 async function freshCacheEntry(cacheKey) {
   const stored = await chrome.storage.session.get(cacheKey);
   const entry = stored[cacheKey];
@@ -681,7 +701,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
               msg.region,
               _sender.tab?.windowId
             ));
-          sendResponse({ ok: true, shot: entry.shot, ...entry.result });
+          sendResponse({ ok: true, shot: entry.shot, ...(await refreshAlready(entry.result)) });
         } else if (msg.screenshot) {
           // Manual snip — always a fresh capture, never cached.
           let shot = null;
@@ -692,7 +712,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           }
           sendResponse({ ok: true, shot, ...(await findMatches(msg.text, shot)) });
         } else {
-          sendResponse({ ok: true, ...(await findMatchesCached(msg.text, msg.force)) });
+          sendResponse({
+            ok: true,
+            ...(await refreshAlready(await findMatchesCached(msg.text, msg.force))),
+          });
         }
       } else if (msg.type === "prefetch") {
         const settings = await getSettings();
