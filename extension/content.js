@@ -365,9 +365,9 @@
     });
     overlay.querySelector("#qa-cancel").onclick = close;
     overlay.querySelector("#qa-unsuspend").onclick = async () => {
-      const noteIds = [...overlay.querySelectorAll("input:checked")].map((el) =>
-        Number(el.dataset.note)
-      );
+      const noteIds = [...overlay.querySelectorAll(".qa-list input:checked")]
+        .map((el) => Number(el.dataset.note))
+        .filter(Number.isFinite);
       if (!noteIds.length) return close();
       overlay.querySelector("#qa-unsuspend").disabled = true;
       overlay.querySelector("#qa-unsuspend").textContent = "Unsuspending…";
