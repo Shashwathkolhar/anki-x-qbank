@@ -79,6 +79,7 @@ function esc(s) {
 // etc.): capture the visible page and show the matches inside the popup.
 let popupShot = null;
 let popupRegions = null;
+let popupFacts = [];
 
 async function popupFind() {
   const box = $("results");
@@ -96,6 +97,7 @@ async function popupFind() {
   }
   popupShot = res.shot || null;
   popupRegions = res.regions?.length ? res.regions : null;
+  popupFacts = res.facts || [];
   const { answer = "", candidates = [] } = res;
   const answerHtml = answer ? `<div class="answer">🎯 ${esc(answer)}</div>` : "";
   if (!candidates.length) {
@@ -135,6 +137,7 @@ async function popupFind() {
         noteIds,
         shot: popupShot,
         regions: popupRegions,
+        facts: popupFacts,
         capture: false,
       });
     } catch (e) {

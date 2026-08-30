@@ -21,6 +21,7 @@
   let lastShot = null; // screenshot the current match was based on (if any)
   let lastRegions = null; // crop boxes (question/options) for that screenshot
   let lastRunRegion = null; // snip region of the current run, for the ↻ button
+  let lastFacts = []; // facts of the current run, pasted as text into the note
   let running = false;
 
   function getVideoId() {
@@ -289,6 +290,7 @@
     }
 
     const { facts = [], candidates = [], answer = "" } = res;
+    lastFacts = facts;
     const answerHtml = answer
       ? `<div class="qa-answer">🎯 ${esc(answer)}</div>`
       : "";
@@ -395,6 +397,7 @@
           shot: lastShot,
           capture: !lastShot,
           regions: lastRegions,
+          facts: lastFacts,
         });
       } catch (e) {
         r = { ok: false, error: e.message };

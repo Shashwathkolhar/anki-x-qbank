@@ -521,7 +521,14 @@ async function findMatches(pageText, imageB64 = null) {
   return { answer, facts, regions, model: modelUsed, candidates, debug: { notesFound: noteIds.length } };
 }
 
-async function unsuspendNotes(noteIds, shotB64, windowId, canCapture, regions) {
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+async function unsuspendNotes(noteIds, shotB64, windowId, canCapture, regions, facts) {
   const settings = await getSettings();
   if (!noteIds?.length) return { cards: 0 };
   const nidQuery = "(" + noteIds.map((id) => "nid:" + id).join(" or ") + ")";
@@ -548,17 +555,25 @@ async function unsuspendNotes(noteIds, shotB64, windowId, canCapture, regions) {
           console.warn("[Qbank→Anki] crop compose failed, using full shot:", e.message);
         }
       }
-      if (!shot) {
+      // The tested facts go in as typed text below the screenshot.
+      const factsBlock = facts?.length
+        ? "<ul>" + facts.map((f) => `<li>${escapeHtml(f)}</li>`).join("") + "</ul>"
+        : "";
+      if (!shot && !factsBlock) {
         pasteError = "no screenshot could be captured";
       } else {
-        const filename = `qbank-anki-${Date.now()}.jpg`;
-        await anki("storeMediaFile", { filename, data: shot });
+        let imgHtml = "";
+        if (shot) {
+          const filename = `qbank-anki-${Date.now()}.jpg`;
+          await anki("storeMediaFile", { filename, data: shot });
+          imgHtml = `<img src="${filename}">`;
+        }
+        const addition = imgHtml + factsBlock;
         const infos = await anki("notesInfo", { notes: noteIds });
         for (const n of infos) {
           const field = n.fields?.[settings.pasteField];
           if (field === undefined) continue; // note type lacks this field
-          const img = `<img src="${filename}">`;
-          const value = field.value ? field.value + "<br>" + img : img;
+          const value = field.value ? field.value + "<br>" + addition : addition;
           await anki("updateNoteFields", {
             note: { id: n.noteId, fields: { [settings.pasteField]: value } },
           });
@@ -724,7 +739,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             msg.shot,
             _sender.tab?.windowId,
             msg.capture,
-            msg.regions
+            msg.regions,
+            msg.facts
           )),
         });
       } else {
