@@ -20,6 +20,8 @@
   let btn = null;
   let lastShot = null; // screenshot the current match was based on (if any)
   let lastRegions = null; // crop boxes (question/options) for that screenshot
+  let lastRunRegion = null; // snip region of the current run, for the ↻ button
+  let running = false;
 
   function getVideoId() {
     try {
@@ -222,9 +224,12 @@
 
   // ---------- flows ----------
 
-  async function findMatches(region = null) {
+  async function findMatches(region = null, force = false) {
     lastShot = null;
     lastRegions = null;
+    lastRunRegion = region;
+    running = true;
+    try {
     let settled = false;
     const showSpinner = () => {
       if (settled) return;
@@ -262,6 +267,7 @@
         text,
         screenshot: IS_YOUTUBE || IS_GDOCS || !!sendRegion,
         region: sendRegion,
+        force,
         // Auto flow on YouTube shares one cached run per video with the
         // prefetcher; a manual snip always runs fresh.
         cacheKey: IS_YOUTUBE && !region ? "yt:" + getVideoId() : undefined,
@@ -421,6 +427,9 @@
       wireClose();
       setTimeout(close, 2500);
     };
+    } finally {
+      running = false;
+    }
   }
 
   function factsHtml(facts) {
@@ -443,6 +452,19 @@
   function wireClose() {
     const x = overlay.querySelector("#qa-close");
     if (x) x.onclick = close;
+    // Add the ↻ fresh-run button to whatever header just rendered.
+    const head = overlay.querySelector(".qa-head");
+    if (head && x && !overlay.querySelector("#qa-refresh")) {
+      const r = document.createElement("button");
+      r.className = "qa-x";
+      r.id = "qa-refresh";
+      r.title = "Re-check this question (fresh run, ignores cache)";
+      r.textContent = "↻";
+      head.insertBefore(r, x);
+      r.onclick = () => {
+        if (!running) findMatches(lastRunRegion, true);
+      };
+    }
   }
 
   // ---------- prefetch: warm the cache while you read ----------

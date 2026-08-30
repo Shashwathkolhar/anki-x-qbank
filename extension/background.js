@@ -594,11 +594,13 @@ function hashText(s) {
 
 const inflight = new Map();
 
-async function findMatchesCached(pageText) {
+async function findMatchesCached(pageText, force = false) {
   const key = hashText(pageText);
-  const stored = await chrome.storage.session.get(key);
-  if (stored[key]) return stored[key];
-  if (inflight.has(key)) return inflight.get(key);
+  if (!force) {
+    const stored = await chrome.storage.session.get(key);
+    if (stored[key]) return stored[key];
+    if (inflight.has(key)) return inflight.get(key);
+  }
   const run = findMatches(pageText)
     .then(async (res) => {
       await chrome.storage.session.set({ [key]: res });
@@ -655,7 +657,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           const key =
             msg.cacheKey + "|" +
             (s.mode === "basic" ? "basic" : s.provider === "openai" ? "oa:" + s.openaiModel : s.model);
-          const cached = await freshCacheEntry(key);
+          const cached = msg.force ? null : await freshCacheEntry(key);
           const entry =
             cached ||
             (await runAndCacheShot(
@@ -675,7 +677,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           }
           sendResponse({ ok: true, shot, ...(await findMatches(msg.text, shot)) });
         } else {
-          sendResponse({ ok: true, ...(await findMatchesCached(msg.text)) });
+          sendResponse({ ok: true, ...(await findMatchesCached(msg.text, msg.force)) });
         }
       } else if (msg.type === "prefetch") {
         const settings = await getSettings();
