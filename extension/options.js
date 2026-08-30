@@ -3,6 +3,9 @@ const $ = (id) => document.getElementById(id);
 const DEFAULTS = {
   apiKey: "",
   mode: "api",
+  provider: "anthropic",
+  openaiKey: "",
+  openaiModel: "gpt-4o-mini",
   model: "claude-haiku-4-5-20251001",
   deck: "",
   tag: "qbank",
@@ -21,6 +24,9 @@ function setStatus(text, ok) {
 async function load() {
   const s = { ...DEFAULTS, ...(await chrome.storage.local.get(DEFAULTS)) };
   $("apiKey").value = s.apiKey;
+  $("provider").value = s.provider;
+  $("openaiKey").value = s.openaiKey;
+  $("openaiModel").value = s.openaiModel;
   $("model").value = s.model;
   $("tag").value = s.tag;
   $("prefetch").checked = !!s.prefetch;
@@ -42,6 +48,9 @@ $("save").addEventListener("click", async () => {
   await chrome.storage.local.set({
     apiKey: $("apiKey").value.trim(),
     mode: document.querySelector("input[name=mode]:checked")?.value || "api",
+    provider: $("provider").value,
+    openaiKey: $("openaiKey").value.trim(),
+    openaiModel: $("openaiModel").value.trim() || "gpt-4o-mini",
     model: $("model").value,
     deck: $("deck").value,
     tag: $("tag").value.trim(),

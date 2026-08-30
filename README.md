@@ -37,12 +37,12 @@ YouTube videos** too: it reads the question straight off the video frame.
 
 ## Two modes
 
-| | **With Claude (recommended)** | **Without Claude (free)** |
+| | **With AI (recommended)** | **Without AI (free)** |
 |---|---|---|
-| How it matches | Claude reads the question, works out the answer, and picks only the cards that truly match | Searches your deck for keywords taken from the page text |
+| How it matches | Claude or ChatGPT reads the question, works out the answer, and picks only the cards that truly match | Searches your deck for keywords taken from the page text |
 | Reads video questions | Yes | No |
 | Shows the answer | Yes | No |
-| Cost | Roughly a cent per question (your own Anthropic API key) | Nothing |
+| Cost | Cents per question, on your own API key (Anthropic or OpenAI — pick either in Options) | Nothing |
 | Accuracy | High — few wrong matches | Rougher — expect to untick some wrong matches yourself |
 
 ## What you need
@@ -53,8 +53,9 @@ YouTube videos** too: it reads the question straight off the video frame.
 4. **An Anki deck to unsuspend from** — built and tested with the AnKing Step
    Deck; any deck works for matching, but the screenshot-on-card feature
    expects AnKing-style fields (Lecture Notes / Missed Questions / Extra).
-5. *(Only for Claude mode)* **An Anthropic API key** — from
-   [console.anthropic.com](https://console.anthropic.com). The free mode needs
+5. *(Only for AI mode)* **An API key from either provider** — Anthropic
+   ([console.anthropic.com](https://console.anthropic.com)) or OpenAI
+   ([platform.openai.com](https://platform.openai.com)). The free mode needs
    no key at all.
 
 ## Installation

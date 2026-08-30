@@ -70,29 +70,43 @@
   <label class="choice">
     <input type="radio" name="mode" value="api" checked>
     <div>
-      <b>With Claude (recommended)</b>
-      <span>Claude reads the question — even inside a video — works out the answer, and picks only the cards that truly match.</span>
+      <b>With AI (recommended)</b>
+      <span>Claude or ChatGPT reads the question — even inside a video — works out the answer, and picks only the cards that truly match.</span>
     </div>
   </label>
   <label class="choice">
     <input type="radio" name="mode" value="basic">
     <div>
-      <b>Without Claude (free, no API key)</b>
+      <b>Without AI (free, no API key)</b>
       <span>Searches your deck for keywords taken from the page text. Downsides: more wrong matches to untick yourself, can't read questions inside videos, no answer shown.</span>
     </div>
   </label>
 
+  <label class="head" for="provider">AI provider</label>
+  <select id="provider">
+    <option value="anthropic">Claude (Anthropic)</option>
+    <option value="openai">ChatGPT (OpenAI)</option>
+  </select>
+
   <label class="head" for="apiKey">Claude API key</label>
   <input type="password" id="apiKey" placeholder="sk-ant-...">
-  <div class="hint">From console.anthropic.com → API keys. Stays on this computer. Not needed for the free mode.</div>
+  <div class="hint">From console.anthropic.com → API keys. Only needed when the provider is Claude. Stays on this computer.</div>
 
-  <label class="head" for="model">Model for reading and answering the question</label>
+  <label class="head" for="model">Claude model for reading and answering</label>
   <select id="model">
     <option value="claude-haiku-4-5-20251001">Haiku — fastest and cheapest, misses hard questions sometimes</option>
     <option value="claude-sonnet-5">Sonnet — much better clinical reasoning (recommended)</option>
     <option value="claude-opus-5">Opus — strongest, a few cents per question</option>
   </select>
-  <div class="hint">Card matching always runs on Haiku, so picking a smarter model here only raises the cost of the answering step.</div>
+  <div class="hint">Card matching always runs on the cheap model, so a smarter choice here only raises the cost of the answering step.</div>
+
+  <label class="head" for="openaiKey">OpenAI API key</label>
+  <input type="password" id="openaiKey" placeholder="sk-...">
+  <div class="hint">From platform.openai.com → API keys. Only needed when the provider is ChatGPT. Stays on this computer.</div>
+
+  <label class="head" for="openaiModel">OpenAI model for reading and answering</label>
+  <input type="text" id="openaiModel" value="gpt-4o-mini">
+  <div class="hint">Any chat model that supports images, e.g. gpt-4o-mini (cheap) or gpt-4o (smarter). Card matching always runs on gpt-4o-mini.</div>
 
   <label class="head" for="deck">Anki deck to search</label>
   <select id="deck">

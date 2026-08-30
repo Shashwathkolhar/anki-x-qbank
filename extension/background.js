@@ -14,6 +14,9 @@ async function getSettings() {
   const defaults = {
     apiKey: "",
     mode: "api",
+    provider: "anthropic",
+    openaiKey: "",
+    openaiModel: "gpt-4o-mini",
     model: DEFAULT_MODEL,
     deck: "",
     tag: "qbank",
@@ -95,6 +98,52 @@ async function claude(settings, system, userText, maxTokens = 1500, imageB64 = n
     .map((b) => b.text)
     .join("");
   return (prefill ? "{" : "") + text;
+}
+
+// ---------- OpenAI (ChatGPT) provider ----------
+
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+const OPENAI_CHEAP_MODEL = "gpt-4o-mini";
+
+async function openai(settings, system, userText, maxTokens, imageB64 = null, modelOverride = null) {
+  const model = modelOverride || settings.openaiModel || OPENAI_CHEAP_MODEL;
+  const content = imageB64
+    ? [
+        { type: "text", text: userText },
+        { type: "image_url", image_url: { url: "data:image/jpeg;base64," + imageB64 } },
+      ]
+    : userText;
+  const res = await fetch(OPENAI_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer " + settings.openaiKey,
+    },
+    body: JSON.stringify({
+      model,
+      max_completion_tokens: Math.max(maxTokens, 4000),
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`OpenAI API error ${res.status}: ${body.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || "";
+}
+
+// Route to the configured provider. cheap=true pins the ranking step to the
+// provider's fast model so a smarter answering model doesn't multiply cost.
+function llm(settings, system, userText, maxTokens, imageB64 = null, cheap = false) {
+  if (settings.provider === "openai") {
+    return openai(settings, system, userText, maxTokens, imageB64, cheap ? OPENAI_CHEAP_MODEL : null);
+  }
+  return claude(settings, system, userText, maxTokens, imageB64, cheap ? DEFAULT_MODEL : null);
 }
 
 // ---------- screenshot (for video-based questions, e.g. YouTube) ----------
@@ -294,10 +343,15 @@ If nothing matches, return {"matches": []}.`;
 async function findMatches(pageText, imageB64 = null) {
   const settings = await getSettings();
   const useApi = settings.mode !== "basic";
-  const modelUsed = useApi ? settings.model || DEFAULT_MODEL : "basic";
-  if (useApi && !settings.apiKey) {
+  const isOpenAI = settings.provider === "openai";
+  const modelUsed = !useApi
+    ? "basic"
+    : isOpenAI
+      ? settings.openaiModel || OPENAI_CHEAP_MODEL
+      : settings.model || DEFAULT_MODEL;
+  if (useApi && !(isOpenAI ? settings.openaiKey : settings.apiKey)) {
     throw new Error(
-      "No Claude API key set. Right-click the extension icon → Options, and paste your key (or switch to the free mode)."
+      `No ${isOpenAI ? "OpenAI" : "Claude"} API key set. Right-click the extension icon → Options, and paste your key (or switch to the free mode).`
     );
   }
 
@@ -316,7 +370,7 @@ async function findMatches(pageText, imageB64 = null) {
       "QBANK PAGE TEXT:\n\n" +
       (pageText || "(no text — use the screenshot)").slice(0, 6000);
     let extracted = parseJson(
-      await claude(settings, SYSTEM_EXTRACT, stage1User, 1100, imageB64)
+      await llm(settings, SYSTEM_EXTRACT, stage1User, 1100, imageB64)
     );
     if (
       (!extracted.facts?.length || !extracted.searches?.length) &&
@@ -325,7 +379,7 @@ async function findMatches(pageText, imageB64 = null) {
       console.warn("[Qbank→Anki] stage 1 came back empty, retrying. Raw:",
         JSON.stringify(extracted).slice(0, 300));
       extracted = parseJson(
-        await claude(
+        await llm(
           settings,
           SYSTEM_EXTRACT +
             "\n\nIMPORTANT: This content DOES contain a medical question or teaching material. Empty arrays are not an acceptable answer here — extract the facts and searches now.",
@@ -420,7 +474,7 @@ async function findMatches(pageText, imageB64 = null) {
   }
 
   // Stage 2: rank candidates against the facts.
-  const rankRaw = await claude(
+  const rankRaw = await llm(
     settings,
     SYSTEM_RANK,
     "CORRECT ANSWER: " +
@@ -431,9 +485,9 @@ async function findMatches(pageText, imageB64 = null) {
       numbered.map((n) => `[${n.i}] ${n.text}`).join("\n"),
     1000,
     null,
-    // Ranking is mechanical — always run it on Haiku so a smarter answering
-    // model doesn't multiply the cost.
-    DEFAULT_MODEL
+    // Ranking is mechanical — run it on the provider's cheap model so a
+    // smarter answering model doesn't multiply the cost.
+    true
   );
   const { matches = [] } = parseJson(rankRaw);
 
@@ -584,7 +638,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           // includes the model/mode so changing settings invalidates stale
           // results instead of serving them.
           const s = await getSettings();
-          const key = msg.cacheKey + "|" + (s.mode === "basic" ? "basic" : s.model);
+          const key =
+            msg.cacheKey + "|" +
+            (s.mode === "basic" ? "basic" : s.provider === "openai" ? "oa:" + s.openaiModel : s.model);
           const cached = await freshCacheEntry(key);
           const entry =
             cached ||
@@ -609,11 +665,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
       } else if (msg.type === "prefetch") {
         const settings = await getSettings();
-        if (settings.prefetch && (settings.apiKey || settings.mode === "basic")) {
+        const hasKey =
+          settings.mode === "basic" ||
+          (settings.provider === "openai" ? settings.openaiKey : settings.apiKey);
+        if (settings.prefetch && hasKey) {
           if (msg.cacheKey) {
             // Video prefetch (pause / near-end): skip if already fresh.
             const key =
-              msg.cacheKey + "|" + (settings.mode === "basic" ? "basic" : settings.model);
+              msg.cacheKey + "|" +
+              (settings.mode === "basic" ? "basic" : settings.provider === "openai" ? "oa:" + settings.openaiModel : settings.model);
             freshCacheEntry(key).then((hit) => {
               if (!hit)
                 runAndCacheShot(
