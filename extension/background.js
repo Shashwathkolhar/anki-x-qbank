@@ -410,10 +410,10 @@ async function findMatches(pageText, imageB64 = null) {
     .map((terms) => (terms || []).filter((t) => t && t.trim()))
     .filter((clean) => clean.length);
 
-  async function runSearches(deckClause) {
+  async function runSearches(statePrefix, deckClause) {
     const queries = termSets.map(
       (clean) =>
-        `is:suspended ${deckClause}(` +
+        `${statePrefix} ${deckClause}(` +
         clean.map((t) => `"${t.trim().replace(/"/g, "")}"`).join(" or ") +
         ")"
     );
@@ -440,17 +440,23 @@ async function findMatches(pageText, imageB64 = null) {
     return ids;
   }
 
-  let noteIds = await runSearches(settings.deck ? `"deck:${settings.deck}" ` : "");
+  const deckClause = settings.deck ? `"deck:${settings.deck}" ` : "";
+  let noteIds = await runSearches("is:suspended", deckClause);
   if (!noteIds.length && settings.deck) {
     // Wrong/renamed deck selected in options? Try the whole collection.
     console.warn("[Qbank→Anki] 0 hits with deck filter — retrying without it.");
-    noteIds = await runSearches("");
+    noteIds = await runSearches("is:suspended", "");
   }
-  if (!noteIds.length)
+  // Also surface matching cards that are ALREADY unsuspended, so "no matches"
+  // can't be mistaken for "the deck missed this topic".
+  const awakeIds = (await runSearches("-is:suspended", deckClause)).slice(0, 15);
+  if (!noteIds.length && !awakeIds.length)
     return { answer, facts, regions, model: modelUsed, candidates: [], debug: { notesFound: 0 } };
 
+  const suspendedSlice = noteIds.slice(0, MAX_CANDIDATES);
+  const awakeSet = new Set(awakeIds);
   const notes = await anki("notesInfo", {
-    notes: noteIds.slice(0, MAX_CANDIDATES),
+    notes: [...suspendedSlice, ...awakeIds],
   });
   const numbered = notes
     .map((n, i) => ({ i: i + 1, noteId: n.noteId, text: noteText(n) }))
@@ -463,12 +469,16 @@ async function findMatches(pageText, imageB64 = null) {
       facts,
       regions,
       model: modelUsed,
-      candidates: numbered.slice(0, 25).map((n) => ({
-        noteId: n.noteId,
-        text: n.text,
-        confidence: "medium",
-        why: useApi ? "matched search terms" : "keyword match — check me",
-      })),
+      candidates: numbered
+        .slice(0, 25)
+        .map((n) => ({
+          noteId: n.noteId,
+          text: n.text,
+          confidence: "medium",
+          already: awakeSet.has(n.noteId),
+          why: useApi ? "matched search terms" : "keyword match — check me",
+        }))
+        .sort((a, b) => (a.already ? 1 : 0) - (b.already ? 1 : 0)),
       debug: { notesFound: noteIds.length },
     };
   }
@@ -499,10 +509,13 @@ async function findMatches(pageText, imageB64 = null) {
       text: byIndex.get(m.i).text,
       confidence: m.confidence === "high" ? "high" : "medium",
       group: m.group === "option" ? "option" : "answer",
+      already: awakeSet.has(byIndex.get(m.i).noteId),
       why: String(m.why || "").slice(0, 80),
     }));
-  // Correct-answer cards first, then other options; high before medium.
-  const rank = (c) => (c.group === "answer" ? 0 : 2) + (c.confidence === "high" ? 0 : 1);
+  // Correct-answer cards first, then other options; within each group the
+  // tickable (still-suspended) cards come before already-unsuspended ones.
+  const rank = (c) =>
+    (c.group === "answer" ? 0 : 8) + (c.already ? 4 : 0) + (c.confidence === "high" ? 0 : 1);
   candidates.sort((a, b) => rank(a) - rank(b));
 
   return { answer, facts, regions, model: modelUsed, candidates, debug: { notesFound: noteIds.length } };
@@ -514,9 +527,10 @@ async function unsuspendNotes(noteIds, shotB64, windowId, canCapture, regions) {
   const nidQuery = "(" + noteIds.map((id) => "nid:" + id).join(" or ") + ")";
   const cardIds = await anki("findCards", { query: nidQuery + " is:suspended" });
   if (cardIds.length) await anki("unsuspend", { cards: cardIds });
-  if (settings.tag) {
-    await anki("addTags", { notes: noteIds, tags: settings.tag });
-  }
+  // Always stamp AnkixQbank so the extension's cards are findable in Anki
+  // (tag:AnkixQbank), plus the user's own tag if set.
+  const tags = "AnkixQbank" + (settings.tag ? " " + settings.tag : "");
+  await anki("addTags", { notes: noteIds, tags });
 
   // Optionally paste a screenshot of the question into a note field
   // (appended — existing field content is never overwritten). Failures are

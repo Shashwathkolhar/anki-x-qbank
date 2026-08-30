@@ -106,8 +106,15 @@ async function popupFind() {
     answerHtml +
     '<div class="list">' +
     candidates
-      .map(
-        (c) => `
+      .map((c) =>
+        c.already
+          ? `
+      <div class="row" style="opacity:.7">
+        <span style="color:#047857;font-weight:700">✓</span>
+        <span class="badge ${c.confidence}">${c.confidence}</span>
+        <span>${esc(c.text)}<br><span class="muted">already unsuspended — in your rotation</span></span>
+      </div>`
+          : `
       <label class="row">
         <input type="checkbox" data-note="${c.noteId}" ${c.confidence === "high" && c.group !== "option" ? "checked" : ""}>
         <span class="badge ${c.confidence}">${c.confidence}</span>

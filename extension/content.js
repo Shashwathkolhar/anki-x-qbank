@@ -307,7 +307,16 @@
       return;
     }
 
-    const row = (c, checked) => `
+    const row = (c, checked) =>
+      c.already
+        ? `
+        <div class="qa-row qa-already-row">
+          <span class="qa-done">✓</span>
+          <span class="qa-badge qa-${c.confidence}">${c.confidence}</span>
+          <span class="qa-card-text">${esc(c.text)}
+            <small class="qa-muted">already unsuspended — in your rotation</small></span>
+        </div>`
+        : `
         <label class="qa-row">
           <input type="checkbox" data-note="${c.noteId}" ${checked ? "checked" : ""}>
           <span class="qa-badge qa-${c.confidence}">${c.confidence}</span>
