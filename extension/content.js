@@ -11,6 +11,9 @@
   const IS_DEFAULT_SITE =
     HOST === "mehlmanmedical.com" || HOST.endsWith(".mehlmanmedical.com");
   const IS_YOUTUBE = HOST === "youtube.com" || HOST.endsWith(".youtube.com");
+  // Google Docs draws the document on canvas — no DOM text, so always send a
+  // screenshot there, like on YouTube.
+  const IS_GDOCS = HOST === "docs.google.com";
 
   let siteButton = false;
   let sitePrefetch = false;
@@ -136,6 +139,7 @@
   function getPageText() {
     const sel = window.getSelection()?.toString().trim();
     if (sel && sel.length > 40) return sel;
+    if (IS_GDOCS) return "GOOGLE DOC TITLE: " + document.title.replace(/ - Google Docs$/, "");
     if (IS_YOUTUBE) return getYouTubeText();
     const main =
       document.querySelector("main") ||
@@ -241,7 +245,7 @@
     const text = getPageText();
     // A screenshot is sent for snips and on YouTube, so thin page text is
     // fine there — elsewhere we need real text to work with.
-    if (!region && !IS_YOUTUBE && (!text || text.length < 60)) {
+    if (!region && !IS_YOUTUBE && !IS_GDOCS && (!text || text.length < 60)) {
       renderError(
         "Couldn't find enough question text on this page. Try selecting the question + explanation text first, then click the button again."
       );
@@ -256,7 +260,7 @@
       res = await chrome.runtime.sendMessage({
         type: "findMatches",
         text,
-        screenshot: IS_YOUTUBE || !!sendRegion,
+        screenshot: IS_YOUTUBE || IS_GDOCS || !!sendRegion,
         region: sendRegion,
         // Auto flow on YouTube shares one cached run per video with the
         // prefetcher; a manual snip always runs fresh.
@@ -516,6 +520,8 @@
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg?.type === "trigger") {
       findMatches();
+      sendResponse({ ok: true });
+    } else if (msg?.type === "ping") {
       sendResponse({ ok: true });
     }
   });

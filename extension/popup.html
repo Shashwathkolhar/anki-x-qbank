@@ -6,10 +6,55 @@
     body {
       font: 13.5px/1.45 -apple-system, system-ui, sans-serif;
       color: #1f2937;
-      width: 280px;
+      width: 340px;
       margin: 0;
       padding: 14px;
     }
+    #results { margin-top: 12px; }
+    #results .answer {
+      background: #eff6ff;
+      border-left: 3px solid #1a56db;
+      border-radius: 6px;
+      padding: 7px 10px;
+      margin-bottom: 8px;
+      font-size: 12.5px;
+      color: #1e3a8a;
+    }
+    #results .list { max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+    #results .row {
+      display: flex;
+      gap: 7px;
+      align-items: flex-start;
+      padding: 7px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 12.5px;
+      cursor: pointer;
+    }
+    #results .row input { margin-top: 2px; }
+    #results .badge {
+      flex: none;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    #results .high { background: #def7ec; color: #03543f; }
+    #results .medium { background: #fdf6b2; color: #723b13; }
+    #results .muted { color: #6b7280; font-size: 11.5px; }
+    #results .unsuspend {
+      width: 100%;
+      margin-top: 10px;
+      padding: 9px;
+      border: none;
+      border-radius: 8px;
+      background: #1a56db;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #results .unsuspend:disabled { opacity: 0.6; }
     h1 {
       font-size: 14px;
       margin: 0 0 10px;
@@ -68,6 +113,8 @@
   </h1>
 
   <button class="find" id="find">🔍 Find Anki cards on this page</button>
+
+  <div id="results" hidden></div>
 
   <div class="site" id="siteSection">
     <div class="host" id="host">…</div>

@@ -13,7 +13,7 @@ async function load() {
   let usable = false;
   try {
     const url = new URL(tab.url);
-    usable = url.protocol === "http:" || url.protocol === "https:";
+    usable = ["http:", "https:", "file:"].includes(url.protocol);
     host = norm(url.hostname);
   } catch {
     /* chrome:// pages etc. */
@@ -25,6 +25,14 @@ async function load() {
     $("pfToggle").disabled = true;
     $("find").disabled = true;
     $("na").hidden = false;
+    return;
+  }
+  if (!host) {
+    // Local file (e.g. a PDF): Find works via screenshot mode, but there is
+    // no site to toggle the floating button on.
+    $("host").textContent = "local file";
+    $("btnToggle").disabled = true;
+    $("pfToggle").disabled = true;
     return;
   }
 
@@ -61,23 +69,94 @@ $("btnToggle").addEventListener("change", () => {
 });
 $("pfToggle").addEventListener("change", save);
 
-$("find").addEventListener("click", async () => {
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Fallback for pages where no content script can live (Chrome's PDF viewer,
+// etc.): capture the visible page and show the matches inside the popup.
+let popupShot = null;
+let popupRegions = null;
+
+async function popupFind() {
+  const box = $("results");
+  box.hidden = false;
+  box.innerHTML = '<div class="muted">📸 Reading the page… (a few seconds)</div>';
+  let res;
   try {
-    await chrome.tabs.sendMessage(tab.id, { type: "trigger" });
-  } catch {
-    // Content script not there yet (extension just installed/reloaded):
-    // inject on demand, then trigger.
-    try {
-      await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ["content.css"] });
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
-      await chrome.tabs.sendMessage(tab.id, { type: "trigger" });
-    } catch (e) {
-      $("na").textContent = "Couldn't run on this page: " + e.message;
-      $("na").hidden = false;
-      return;
-    }
+    res = await chrome.runtime.sendMessage({ type: "popupFind", windowId: tab.windowId });
+  } catch (e) {
+    res = { ok: false, error: e.message };
   }
-  window.close();
+  if (!res?.ok) {
+    box.innerHTML = `<div class="muted">⚠️ ${esc(res?.error || "Unknown error")}</div>`;
+    return;
+  }
+  popupShot = res.shot || null;
+  popupRegions = res.regions?.length ? res.regions : null;
+  const { answer = "", candidates = [] } = res;
+  const answerHtml = answer ? `<div class="answer">🎯 ${esc(answer)}</div>` : "";
+  if (!candidates.length) {
+    box.innerHTML = answerHtml + '<div class="muted">No suspended cards matched this page.</div>';
+    return;
+  }
+  box.innerHTML =
+    answerHtml +
+    '<div class="list">' +
+    candidates
+      .map(
+        (c) => `
+      <label class="row">
+        <input type="checkbox" data-note="${c.noteId}" ${c.confidence === "high" && c.group !== "option" ? "checked" : ""}>
+        <span class="badge ${c.confidence}">${c.confidence}</span>
+        <span>${esc(c.text)}<br><span class="muted">${esc(c.why)}</span></span>
+      </label>`
+      )
+      .join("") +
+    '</div><button class="unsuspend" id="popupUnsuspend">Unsuspend selected</button>';
+  $("popupUnsuspend").addEventListener("click", async () => {
+    const noteIds = [...box.querySelectorAll("input:checked")].map((el) => Number(el.dataset.note));
+    if (!noteIds.length) return;
+    $("popupUnsuspend").disabled = true;
+    $("popupUnsuspend").textContent = "Unsuspending…";
+    let r;
+    try {
+      r = await chrome.runtime.sendMessage({
+        type: "unsuspend",
+        noteIds,
+        shot: popupShot,
+        regions: popupRegions,
+        capture: false,
+      });
+    } catch (e) {
+      r = { ok: false, error: e.message };
+    }
+    box.innerHTML = r?.ok
+      ? `<div class="muted">✅ ${r.cards} card${r.cards === 1 ? "" : "s"} unsuspended${r.pasted ? ` · 📸 screenshot added to ${esc(r.pasteField)}` : ""}</div>`
+      : `<div class="muted">⚠️ ${esc(r?.error || "Unknown error")}</div>`;
+  });
+}
+
+$("find").addEventListener("click", async () => {
+  // If a content script lives in this page, use the on-page panel.
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: "ping" });
+    await chrome.tabs.sendMessage(tab.id, { type: "trigger" });
+    window.close();
+    return;
+  } catch {}
+  // Not there yet — try injecting (first run after install/reload).
+  try {
+    await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ["content.css"] });
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
+    await chrome.tabs.sendMessage(tab.id, { type: "trigger" });
+    window.close();
+    return;
+  } catch {}
+  // No script can live here (PDF viewer etc.) — screenshot mode in the popup.
+  popupFind();
 });
 
 $("options").addEventListener("click", () => chrome.runtime.openOptionsPage());

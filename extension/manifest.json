@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Anki x Qbank",
   "description": "One click on a qbank question: finds the matching AnKing cards and unsuspends them.",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "permissions": ["storage", "scripting", "activeTab"],
   "host_permissions": [
     "http://127.0.0.1:8765/*",

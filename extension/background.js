@@ -690,6 +690,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           }
         }
         sendResponse({ ok: true }); // fire-and-forget; don't hold the channel
+      } else if (msg.type === "popupFind") {
+        // PDF viewer and other pages where no content script can live:
+        // the popup asks us to capture the visible tab and run the pipeline.
+        let shot = null;
+        try {
+          shot = await captureTab(msg.windowId);
+        } catch (e) {
+          console.warn("[Qbank→Anki] popup capture failed:", e.message);
+        }
+        sendResponse({ ok: true, shot, ...(await findMatches(msg.text || "", shot)) });
       } else if (msg.type === "unsuspend") {
         sendResponse({
           ok: true,
