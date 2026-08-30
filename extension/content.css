@@ -44,18 +44,23 @@
 
 #qa-overlay .qa-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 4px;
   padding: 10px 14px;
   background: #1a56db;
   color: #fff;
   font-weight: 600;
 }
+#qa-overlay .qa-head span:first-child {
+  flex: 1;
+  min-width: 0;
+}
 #qa-overlay .qa-x {
   background: none;
   border: none;
   color: #fff;
-  font-size: 15px;
+  font-size: 16px;
+  line-height: 1;
   cursor: pointer;
   padding: 2px 6px;
 }
