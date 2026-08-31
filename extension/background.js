@@ -17,6 +17,8 @@ async function getSettings() {
     provider: "anthropic",
     openaiKey: "",
     openaiModel: "gpt-4o-mini",
+    githubKey: "",
+    githubModel: "openai/gpt-4o",
     model: DEFAULT_MODEL,
     deck: "",
     tag: "qbank",
@@ -104,24 +106,31 @@ async function claude(settings, system, userText, maxTokens = 1500, imageB64 = n
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const OPENAI_CHEAP_MODEL = "gpt-4o-mini";
+// GitHub Models: free, rate-limited, OpenAI-compatible; auth is a GitHub PAT.
+const GITHUB_URL = "https://models.github.ai/inference/chat/completions";
+const GITHUB_CHEAP_MODEL = "openai/gpt-4o-mini";
 
-async function openai(settings, system, userText, maxTokens, imageB64 = null, modelOverride = null) {
-  const model = modelOverride || settings.openaiModel || OPENAI_CHEAP_MODEL;
+async function openaiStyle(settings, system, userText, maxTokens, imageB64 = null, cheap = false) {
+  const gh = settings.provider === "github";
+  const model = cheap
+    ? (gh ? GITHUB_CHEAP_MODEL : OPENAI_CHEAP_MODEL)
+    : (gh ? settings.githubModel || "openai/gpt-4o" : settings.openaiModel || OPENAI_CHEAP_MODEL);
   const content = imageB64
     ? [
         { type: "text", text: userText },
         { type: "image_url", image_url: { url: "data:image/jpeg;base64," + imageB64 } },
       ]
     : userText;
-  const res = await fetch(OPENAI_URL, {
+  const cap = Math.max(maxTokens, 4000);
+  const res = await fetch(gh ? GITHUB_URL : OPENAI_URL, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: "Bearer " + settings.openaiKey,
+      authorization: "Bearer " + (gh ? settings.githubKey : settings.openaiKey),
     },
     body: JSON.stringify({
       model,
-      max_completion_tokens: Math.max(maxTokens, 4000),
+      ...(gh ? { max_tokens: cap } : { max_completion_tokens: cap }),
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },
@@ -131,7 +140,9 @@ async function openai(settings, system, userText, maxTokens, imageB64 = null, mo
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`OpenAI API error ${res.status}: ${body.slice(0, 300)}`);
+    throw new Error(
+      `${gh ? "GitHub Models" : "OpenAI"} API error ${res.status}: ${body.slice(0, 300)}`
+    );
   }
   const data = await res.json();
   return data.choices?.[0]?.message?.content || "";
@@ -140,10 +151,18 @@ async function openai(settings, system, userText, maxTokens, imageB64 = null, mo
 // Route to the configured provider. cheap=true pins the ranking step to the
 // provider's fast model so a smarter answering model doesn't multiply cost.
 function llm(settings, system, userText, maxTokens, imageB64 = null, cheap = false) {
-  if (settings.provider === "openai") {
-    return openai(settings, system, userText, maxTokens, imageB64, cheap ? OPENAI_CHEAP_MODEL : null);
+  if (settings.provider === "openai" || settings.provider === "github") {
+    return openaiStyle(settings, system, userText, maxTokens, imageB64, cheap);
   }
   return claude(settings, system, userText, maxTokens, imageB64, cheap ? DEFAULT_MODEL : null);
+}
+
+// Cache tag: which provider/model produced a stored result.
+function modelCacheTag(s) {
+  if (s.mode === "basic") return "basic";
+  if (s.provider === "github") return "gh:" + s.githubModel;
+  if (s.provider === "openai") return "oa:" + s.openaiModel;
+  return s.model;
 }
 
 // ---------- screenshot (for video-based questions, e.g. YouTube) ----------
@@ -343,15 +362,20 @@ If nothing matches, return {"matches": []}.`;
 async function findMatches(pageText, imageB64 = null) {
   const settings = await getSettings();
   const useApi = settings.mode !== "basic";
-  const isOpenAI = settings.provider === "openai";
+  const provider = settings.provider;
   const modelUsed = !useApi
     ? "basic"
-    : isOpenAI
-      ? settings.openaiModel || OPENAI_CHEAP_MODEL
-      : settings.model || DEFAULT_MODEL;
-  if (useApi && !(isOpenAI ? settings.openaiKey : settings.apiKey)) {
+    : provider === "github"
+      ? settings.githubModel || "openai/gpt-4o"
+      : provider === "openai"
+        ? settings.openaiModel || OPENAI_CHEAP_MODEL
+        : settings.model || DEFAULT_MODEL;
+  const keyForProvider =
+    provider === "github" ? settings.githubKey : provider === "openai" ? settings.openaiKey : settings.apiKey;
+  if (useApi && !keyForProvider) {
+    const name = provider === "github" ? "GitHub token" : provider === "openai" ? "OpenAI API key" : "Claude API key";
     throw new Error(
-      `No ${isOpenAI ? "OpenAI" : "Claude"} API key set. Right-click the extension icon → Options, and paste your key (or switch to the free mode).`
+      `No ${name} set. Right-click the extension icon → Options, and paste it (or switch to the free keyword mode).`
     );
   }
 
@@ -689,9 +713,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           // includes the model/mode so changing settings invalidates stale
           // results instead of serving them.
           const s = await getSettings();
-          const key =
-            msg.cacheKey + "|" +
-            (s.mode === "basic" ? "basic" : s.provider === "openai" ? "oa:" + s.openaiModel : s.model);
+          const key = msg.cacheKey + "|" + modelCacheTag(s);
           const cached = msg.force ? null : await freshCacheEntry(key);
           const entry =
             cached ||
@@ -721,13 +743,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const settings = await getSettings();
         const hasKey =
           settings.mode === "basic" ||
-          (settings.provider === "openai" ? settings.openaiKey : settings.apiKey);
+          (settings.provider === "github"
+            ? settings.githubKey
+            : settings.provider === "openai"
+              ? settings.openaiKey
+              : settings.apiKey);
         if (settings.prefetch && hasKey) {
           if (msg.cacheKey) {
             // Video prefetch (pause / near-end): skip if already fresh.
-            const key =
-              msg.cacheKey + "|" +
-              (settings.mode === "basic" ? "basic" : settings.provider === "openai" ? "oa:" + settings.openaiModel : settings.model);
+            const key = msg.cacheKey + "|" + modelCacheTag(settings);
             freshCacheEntry(key).then((hit) => {
               if (!hit)
                 runAndCacheShot(

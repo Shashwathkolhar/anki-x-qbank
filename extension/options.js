@@ -6,6 +6,8 @@ const DEFAULTS = {
   provider: "anthropic",
   openaiKey: "",
   openaiModel: "gpt-4o-mini",
+  githubKey: "",
+  githubModel: "openai/gpt-4o",
   model: "claude-haiku-4-5-20251001",
   deck: "",
   tag: "qbank",
@@ -27,6 +29,8 @@ async function load() {
   $("provider").value = s.provider;
   $("openaiKey").value = s.openaiKey;
   $("openaiModel").value = s.openaiModel;
+  $("githubKey").value = s.githubKey;
+  $("githubModel").value = s.githubModel;
   $("model").value = s.model;
   $("tag").value = s.tag;
   $("prefetch").checked = !!s.prefetch;
@@ -51,6 +55,8 @@ $("save").addEventListener("click", async () => {
     provider: $("provider").value,
     openaiKey: $("openaiKey").value.trim(),
     openaiModel: $("openaiModel").value.trim() || "gpt-4o-mini",
+    githubKey: $("githubKey").value.trim(),
+    githubModel: $("githubModel").value.trim() || "openai/gpt-4o",
     model: $("model").value,
     deck: $("deck").value,
     tag: $("tag").value.trim(),

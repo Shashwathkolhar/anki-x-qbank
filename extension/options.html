@@ -86,6 +86,7 @@
   <select id="provider">
     <option value="anthropic">Claude (Anthropic)</option>
     <option value="openai">ChatGPT (OpenAI)</option>
+    <option value="github">GitHub Models — free, ~50 requests/day</option>
   </select>
 
   <label class="head" for="apiKey">Claude API key</label>
@@ -107,6 +108,14 @@
   <label class="head" for="openaiModel">OpenAI model for reading and answering</label>
   <input type="text" id="openaiModel" value="gpt-4o-mini">
   <div class="hint">Any chat model that supports images, e.g. gpt-4o-mini (cheap) or gpt-4o (smarter). Card matching always runs on gpt-4o-mini.</div>
+
+  <label class="head" for="githubKey">GitHub token</label>
+  <input type="password" id="githubKey" placeholder="github_pat_...">
+  <div class="hint">Free. Create a fine-grained personal access token at github.com → Settings → Developer settings, with the "Models" permission set to read. Only needed when the provider is GitHub Models.</div>
+
+  <label class="head" for="githubModel">GitHub Models model</label>
+  <input type="text" id="githubModel" value="openai/gpt-4o">
+  <div class="hint">Free tier has daily caps (roughly 50/day on gpt-4o). Card matching runs on openai/gpt-4o-mini, which has a higher cap.</div>
 
   <label class="head" for="deck">Anki deck to search</label>
   <select id="deck">
