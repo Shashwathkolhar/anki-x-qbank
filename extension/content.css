@@ -223,6 +223,68 @@
   color: #374151;
 }
 
+#qa-overlay .qa-make {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #e5e7eb;
+}
+#qa-overlay .qa-make-btn {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #3730a3;
+  font: 600 13px/1 -apple-system, system-ui, sans-serif;
+  cursor: pointer;
+}
+#qa-overlay .qa-make-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+#qa-overlay .qa-mk-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  margin: 8px 0 3px;
+}
+#qa-overlay textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: 13px/1.4 -apple-system, system-ui, sans-serif;
+  color: #1f2937;
+  background: #fff;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  resize: vertical;
+}
+#qa-overlay .qa-mk-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+#qa-overlay .qa-mk-actions button {
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  font: 600 12.5px/1 -apple-system, system-ui, sans-serif;
+  cursor: pointer;
+}
+#qa-overlay .qa-mk-actions .qa-primary {
+  background: #1a56db;
+  border-color: #1a56db;
+  color: #fff;
+}
+#qa-overlay .qa-mk-actions button:disabled {
+  opacity: 0.6;
+}
+
 #qa-overlay .qa-foot {
   display: flex;
   gap: 8px;

@@ -25,6 +25,7 @@ async function getSettings() {
     prefetch: true,
     pasteShot: true,
     pasteField: "Lecture Notes",
+    newCardDeck: "AnkixQbank",
   };
   const stored = await chrome.storage.local.get(defaults);
   return { ...defaults, ...stored };
@@ -359,6 +360,78 @@ Respond with ONLY this JSON, no other text:
 {"matches": [{"i": <card number>, "confidence": "high"|"medium"|"related", "group": "answer"|"option", "why": "<under 10 words>"}, ...]}
 Return {"matches": []} only when nothing is even loosely relevant.`;
 
+// ---------- make a new card from the question ----------
+
+const SYSTEM_CARD = `You write ONE high-yield Anki cloze card from a practice question a medical student just did, in the style of the AnKing deck.
+
+Rules:
+- One concise sentence stating the fact the question tested, with the key answer as the cloze deletion: {{c1::answer}}. Exactly one cloze.
+- Build it from the question's SPECIFIC clues and buzzwords — the exact clinical clue → the diagnosis/mechanism/next step (e.g. "A to-and-fro (continuous machinery) murmur with bounding pulses and wide pulse pressure in an infant indicates {{c1::patent ductus arteriosus (PDA)}}"). Not a generic textbook line.
+- Under 35 words. Plain text, no HTML.
+- Also write "extra": 1-2 sentences of explanation (why, or the mechanism).
+
+Respond with ONLY this JSON, no other text:
+{"text": "<sentence containing {{c1::...}}>", "extra": "<short explanation>"}`;
+
+async function makeCard({ text, shot, answer, facts }) {
+  const settings = await getSettings();
+  if (settings.mode === "basic") throw new Error("Making cards needs an AI provider (see Options).");
+  const key =
+    settings.provider === "github" ? settings.githubKey
+    : settings.provider === "openai" ? settings.openaiKey
+    : settings.apiKey;
+  if (!key) throw new Error("No API key set for the selected provider (see Options).");
+  const user =
+    "QUESTION (page text):\n" + (text || "(no text — see screenshot)").slice(0, 4000) +
+    "\n\nCORRECT ANSWER: " + (answer || "not determined") +
+    "\n\nFACTS TESTED:\n" + (facts || []).map((f) => "- " + f).join("\n");
+  const raw = await llm(settings, SYSTEM_CARD, user, 600, shot || null);
+  const parsed = parseJson(raw);
+  if (!parsed.text) throw new Error("Couldn't write a card from this question.");
+  return { text: String(parsed.text), extra: String(parsed.extra || "") };
+}
+
+async function addCard({ text, extra, shot, regions, facts, windowId, capture }) {
+  const settings = await getSettings();
+  if (!/\{\{c\d+::/.test(text || "")) {
+    throw new Error("The card text needs a cloze like {{c1::answer}} — edit it and try again.");
+  }
+  const deck = settings.newCardDeck || "AnkixQbank";
+  await anki("createDeck", { deck }); // no-op if it exists
+  const models = await anki("modelNames");
+  const model =
+    models.find((m) => m.includes("AnKingOverhaul")) ||
+    models.find((m) => m === "Cloze") ||
+    models.find((m) => /cloze/i.test(m));
+  if (!model) throw new Error("No cloze note type found in Anki.");
+  const fieldNames = await anki("modelFieldNames", { modelName: model });
+  const fields = { [fieldNames[0]]: text };
+  const extraField = ["Extra", "Back Extra"].find((f) => fieldNames.includes(f));
+  if (extraField && extra) fields[extraField] = extra;
+
+  // Same screenshot + facts paste as an unsuspend.
+  if (settings.pasteShot) {
+    let addition = "";
+    try {
+      addition = await buildNoteAddition({ shot, regions, facts, windowId, canCapture: capture });
+    } catch (e) {
+      console.warn("[Qbank→Anki] new-card paste skipped:", e.message);
+    }
+    if (addition) {
+      const target = [settings.pasteField, "Lecture Notes", "Missed Questions", "Extra", "Back Extra"]
+        .find((f) => fieldNames.includes(f));
+      if (target) fields[target] = fields[target] ? fields[target] + "<br>" + addition : addition;
+    }
+  }
+
+  const tags = ["AnkixQbank", "AnkixQbank::created"];
+  if (settings.tag) tags.push(settings.tag);
+  const noteId = await anki("addNote", {
+    note: { deckName: deck, modelName: model, fields, tags, options: { allowDuplicate: true } },
+  });
+  return { noteId, deck, model };
+}
+
 // ---------- main flows ----------
 
 async function findMatches(pageText, imageB64 = null) {
@@ -556,6 +629,31 @@ function escapeHtml(s) {
     .replace(/>/g, "&gt;");
 }
 
+// Builds the HTML pasted into a note: the (cropped) question screenshot as a
+// stored media file, followed by the tested facts as a bullet list.
+// Returns "" when there is nothing to paste.
+async function buildNoteAddition({ shot, regions, facts, windowId, canCapture }) {
+  let s = shot || null;
+  if (!s && canCapture) s = await captureTab(windowId);
+  if (s && regions?.length) {
+    try {
+      s = await composeCrops(s, regions);
+    } catch (e) {
+      console.warn("[Qbank→Anki] crop compose failed, using full shot:", e.message);
+    }
+  }
+  const factsBlock = facts?.length
+    ? "<ul>" + facts.map((f) => `<li>${escapeHtml(f)}</li>`).join("") + "</ul>"
+    : "";
+  let imgHtml = "";
+  if (s) {
+    const filename = `qbank-anki-${Date.now()}.jpg`;
+    await anki("storeMediaFile", { filename, data: s });
+    imgHtml = `<img src="${filename}">`;
+  }
+  return imgHtml + factsBlock;
+}
+
 async function unsuspendNotes(noteIds, shotB64, windowId, canCapture, regions, facts) {
   const settings = await getSettings();
   if (!noteIds?.length) return { cards: 0 };
@@ -574,29 +672,16 @@ async function unsuspendNotes(noteIds, shotB64, windowId, canCapture, regions, f
   let pasteError = "";
   if (settings.pasteShot && settings.pasteField) {
     try {
-      let shot = shotB64 || null;
-      if (!shot && canCapture) shot = await captureTab(windowId);
-      if (shot && regions?.length) {
-        try {
-          shot = await composeCrops(shot, regions);
-        } catch (e) {
-          console.warn("[Qbank→Anki] crop compose failed, using full shot:", e.message);
-        }
-      }
-      // The tested facts go in as typed text below the screenshot.
-      const factsBlock = facts?.length
-        ? "<ul>" + facts.map((f) => `<li>${escapeHtml(f)}</li>`).join("") + "</ul>"
-        : "";
-      if (!shot && !factsBlock) {
+      const addition = await buildNoteAddition({
+        shot: shotB64,
+        regions,
+        facts,
+        windowId,
+        canCapture,
+      });
+      if (!addition) {
         pasteError = "no screenshot could be captured";
       } else {
-        let imgHtml = "";
-        if (shot) {
-          const filename = `qbank-anki-${Date.now()}.jpg`;
-          await anki("storeMediaFile", { filename, data: shot });
-          imgHtml = `<img src="${filename}">`;
-        }
-        const addition = imgHtml + factsBlock;
         const infos = await anki("notesInfo", { notes: noteIds });
         const FALLBACK_FIELDS = ["Lecture Notes", "Missed Questions", "Extra", "Back"];
         const fieldCreatedOn = new Set(); // models we added the field to this run
@@ -808,6 +893,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           console.warn("[Qbank→Anki] popup capture failed:", e.message);
         }
         sendResponse({ ok: true, shot, ...(await findMatches(msg.text || "", shot)) });
+      } else if (msg.type === "makeCard") {
+        sendResponse({ ok: true, ...(await makeCard(msg)) });
+      } else if (msg.type === "addCard") {
+        sendResponse({
+          ok: true,
+          ...(await addCard({ ...msg, windowId: _sender.tab?.windowId })),
+        });
       } else if (msg.type === "unsuspend") {
         sendResponse({
           ok: true,

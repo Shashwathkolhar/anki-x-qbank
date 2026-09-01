@@ -310,8 +310,10 @@
           }</p>
           ${factsHtml(facts)}
           <p class="qa-muted" style="font-size:11px">${facts.length} facts · ${searched} candidate notes searched${res.model ? " · answered by " + esc(modelLabel(res.model)) : ""}</p>
+          ${MAKE_HTML}
         </div>`);
       wireClose();
+      wireMake(answer, facts);
       return;
     }
 
@@ -355,12 +357,14 @@
         </label>
         <div class="qa-list">${rows}</div>
         ${res.model ? `<p class="qa-muted" style="font-size:11px;margin:8px 0 0">answered by ${esc(modelLabel(res.model))}</p>` : ""}
+        ${MAKE_HTML}
       </div>
       <div class="qa-foot">
         <button id="qa-unsuspend" class="qa-primary">Unsuspend selected</button>
         <button id="qa-cancel">Cancel</button>
       </div>`);
     wireClose();
+    wireMake(answer, facts);
     const selectAll = overlay.querySelector("#qa-select-all");
     const rowBoxes = () => [...overlay.querySelectorAll(".qa-list input[type=checkbox]")];
     selectAll.checked = rowBoxes().every((b) => b.checked);
@@ -433,6 +437,88 @@
     } finally {
       running = false;
     }
+  }
+
+  const MAKE_HTML = `
+    <div class="qa-make">
+      <button id="qa-make" class="qa-make-btn">✨ Make a card from this question</button>
+      <div id="qa-make-area"></div>
+    </div>`;
+
+  // "Make a card": the AI drafts one cloze card from this question's clues;
+  // you can edit it, then it's added to Anki with the usual screenshot+facts.
+  function wireMake(answer, facts) {
+    const makeBtn = overlay.querySelector("#qa-make");
+    const area = overlay.querySelector("#qa-make-area");
+    if (!makeBtn || !area) return;
+    makeBtn.onclick = async () => {
+      makeBtn.disabled = true;
+      area.innerHTML = `<p class="qa-muted">✨ Writing a card…</p>`;
+      let r;
+      try {
+        r = await chrome.runtime.sendMessage({
+          type: "makeCard",
+          text: getPageText(),
+          shot: lastShot,
+          answer,
+          facts,
+        });
+      } catch (e) {
+        r = { ok: false, error: e.message };
+      }
+      if (!r?.ok) {
+        area.innerHTML = `<p class="qa-muted">⚠️ ${esc(r?.error || "Unknown error")}</p>`;
+        makeBtn.disabled = false;
+        return;
+      }
+      area.innerHTML = `
+        <label class="qa-mk-label">Card (cloze)</label>
+        <textarea id="qa-mk-text" rows="3">${esc(r.text)}</textarea>
+        <label class="qa-mk-label">Extra</label>
+        <textarea id="qa-mk-extra" rows="2">${esc(r.extra || "")}</textarea>
+        <div class="qa-mk-actions">
+          <button id="qa-mk-add" class="qa-primary">Add to Anki</button>
+          <button id="qa-mk-cancel">Cancel</button>
+        </div>`;
+      overlay.querySelector("#qa-mk-cancel").onclick = () => {
+        area.innerHTML = "";
+        makeBtn.disabled = false;
+      };
+      overlay.querySelector("#qa-mk-add").onclick = async () => {
+        const addBtn = overlay.querySelector("#qa-mk-add");
+        addBtn.disabled = true;
+        addBtn.textContent = "Adding…";
+        const payload = {
+          type: "addCard",
+          text: overlay.querySelector("#qa-mk-text").value,
+          extra: overlay.querySelector("#qa-mk-extra").value,
+          shot: lastShot,
+          regions: lastRegions,
+          facts: lastFacts,
+          capture: !lastShot,
+        };
+        // No stored screenshot? Hide our UI so a fresh capture stays clean.
+        if (!lastShot) {
+          overlay.style.visibility = "hidden";
+          if (btn) btn.style.visibility = "hidden";
+          await new Promise((r2) => requestAnimationFrame(() => requestAnimationFrame(r2)));
+        }
+        let a;
+        try {
+          a = await chrome.runtime.sendMessage(payload);
+        } catch (e) {
+          a = { ok: false, error: e.message };
+        }
+        overlay.style.visibility = "";
+        if (btn) btn.style.visibility = "";
+        if (a?.ok) {
+          area.innerHTML = `<p class="qa-muted">✅ Card added to "${esc(a.deck)}"</p>`;
+        } else {
+          area.innerHTML = `<p class="qa-muted">⚠️ ${esc(a?.error || "Unknown error")}</p>`;
+          makeBtn.disabled = false;
+        }
+      };
+    };
   }
 
   function factsHtml(facts) {

@@ -14,6 +14,7 @@ const DEFAULTS = {
   prefetch: true,
   pasteShot: true,
   pasteField: "Lecture Notes",
+  newCardDeck: "AnkixQbank",
 };
 
 function setStatus(text, ok) {
@@ -36,6 +37,7 @@ async function load() {
   $("prefetch").checked = !!s.prefetch;
   $("pasteShot").checked = !!s.pasteShot;
   $("pasteField").value = s.pasteField;
+  $("newCardDeck").value = s.newCardDeck;
   const radio = document.querySelector(`input[name=mode][value="${s.mode}"]`);
   if (radio) radio.checked = true;
   // Keep the saved deck selectable even before decks are loaded from Anki.
@@ -63,6 +65,7 @@ $("save").addEventListener("click", async () => {
     prefetch: $("prefetch").checked,
     pasteShot: $("pasteShot").checked,
     pasteField: $("pasteField").value,
+    newCardDeck: $("newCardDeck").value.trim() || "AnkixQbank",
   });
   setStatus("Saved ✓", true);
 });
