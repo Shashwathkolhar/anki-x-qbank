@@ -441,7 +441,7 @@
 
   const MAKE_HTML = `
     <div class="qa-make">
-      <button id="qa-make" class="qa-make-btn">✨ Make a card from this question</button>
+      <button id="qa-make" class="qa-make-btn">Make a card from this question</button>
       <div id="qa-make-area"></div>
     </div>`;
 
@@ -453,7 +453,7 @@
     if (!makeBtn || !area) return;
     makeBtn.onclick = async () => {
       makeBtn.disabled = true;
-      area.innerHTML = `<p class="qa-muted">✨ Writing a card…</p>`;
+      area.innerHTML = `<p class="qa-muted">Writing a card…</p>`;
       let r;
       try {
         r = await chrome.runtime.sendMessage({
