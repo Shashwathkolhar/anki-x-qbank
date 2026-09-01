@@ -349,13 +349,15 @@ Give 3-8 searches. Each inner array is one search: its terms are OR'd together, 
 const SYSTEM_RANK = `You help a medical student decide which suspended Anki cards to unsuspend after a qbank question.
 You are given the facts the question tested and a numbered list of candidate Anki cards (cloze text with answers shown).
 
-Select ONLY cards that directly test one of those facts. Be selective: a card that merely mentions a related topic does not count. Confidence "high" = the card tests exactly a listed fact; "medium" = closely related and probably worth unsuspending.
+Select cards that directly test one of those facts. Confidence "high" = the card tests exactly a listed fact; "medium" = closely related and probably worth unsuspending.
 
-Also label each match's "group": "answer" if the card tests the correct answer or the question's main teaching point; "option" if it instead tests one of the other answer choices (the differential).
+If NO card directly tests the facts, do not return an empty list — instead return the 3-5 closest adjacent cards a student reviewing this question would still benefit from (e.g. general infant feeding guidelines when the question is about a formula switch), marked confidence "related". You may also add up to 3 such "related" cards alongside direct matches when they are genuinely useful.
+
+Also label each match's "group": "answer" if the card relates to the correct answer or the question's main teaching point; "option" if it instead relates to one of the other answer choices (the differential).
 
 Respond with ONLY this JSON, no other text:
-{"matches": [{"i": <card number>, "confidence": "high"|"medium", "group": "answer"|"option", "why": "<under 10 words>"}, ...]}
-If nothing matches, return {"matches": []}.`;
+{"matches": [{"i": <card number>, "confidence": "high"|"medium"|"related", "group": "answer"|"option", "why": "<under 10 words>"}, ...]}
+Return {"matches": []} only when nothing is even loosely relevant.`;
 
 // ---------- main flows ----------
 
@@ -531,15 +533,17 @@ async function findMatches(pageText, imageB64 = null) {
     .map((m) => ({
       noteId: byIndex.get(m.i).noteId,
       text: byIndex.get(m.i).text,
-      confidence: m.confidence === "high" ? "high" : "medium",
+      confidence: m.confidence === "high" ? "high" : m.confidence === "related" ? "related" : "medium",
       group: m.group === "option" ? "option" : "answer",
       already: awakeSet.has(byIndex.get(m.i).noteId),
       why: String(m.why || "").slice(0, 80),
     }));
   // Correct-answer cards first, then other options; within each group the
-  // tickable (still-suspended) cards come before already-unsuspended ones.
+  // tickable (still-suspended) cards come before already-unsuspended ones,
+  // and high > medium > related.
+  const confRank = { high: 0, medium: 1, related: 2 };
   const rank = (c) =>
-    (c.group === "answer" ? 0 : 8) + (c.already ? 4 : 0) + (c.confidence === "high" ? 0 : 1);
+    (c.group === "answer" ? 0 : 12) + (c.already ? 4 : 0) + (confRank[c.confidence] ?? 1);
   candidates.sort((a, b) => rank(a) - rank(b));
 
   return { answer, facts, regions, model: modelUsed, candidates, debug: { notesFound: noteIds.length } };
@@ -714,8 +718,9 @@ async function refreshAlready(result) {
       "is:suspended (" + c.map((x) => "nid:" + x.noteId).join(" or ") + ")";
     const stillSuspended = new Set(await anki("findNotes", { query: q }));
     for (const x of c) x.already = !stillSuspended.has(x.noteId);
+    const confRank = { high: 0, medium: 1, related: 2 };
     const rank = (x) =>
-      (x.group === "option" ? 8 : 0) + (x.already ? 4 : 0) + (x.confidence === "high" ? 0 : 1);
+      (x.group === "option" ? 12 : 0) + (x.already ? 4 : 0) + (confRank[x.confidence] ?? 1);
     c.sort((a, b) => rank(a) - rank(b));
   } catch (e) {
     console.warn("[Qbank→Anki] suspend-state refresh failed:", e.message);

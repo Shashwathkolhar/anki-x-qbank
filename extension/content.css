@@ -218,6 +218,10 @@
   background: #fdf6b2;
   color: #723b13;
 }
+#qa-overlay .qa-related {
+  background: #e5e7eb;
+  color: #374151;
+}
 
 #qa-overlay .qa-foot {
   display: flex;
