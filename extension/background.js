@@ -594,17 +594,42 @@ async function unsuspendNotes(noteIds, shotB64, windowId, canCapture, regions, f
         }
         const addition = imgHtml + factsBlock;
         const infos = await anki("notesInfo", { notes: noteIds });
+        const FALLBACK_FIELDS = ["Lecture Notes", "Missed Questions", "Extra", "Back"];
+        const fieldCreatedOn = new Set(); // models we added the field to this run
         for (const n of infos) {
-          const field = n.fields?.[settings.pasteField];
-          if (field === undefined) continue; // note type lacks this field
-          const value = field.value ? field.value + "<br>" + addition : addition;
-          await anki("updateNoteFields", {
-            note: { id: n.noteId, fields: { [settings.pasteField]: value } },
-          });
-          pasted++;
+          let target = settings.pasteField;
+          if (n.fields?.[target] === undefined && !fieldCreatedOn.has(n.modelName)) {
+            // Note type lacks the chosen field — use one it does have, or
+            // create the field on that note type.
+            const fallback = FALLBACK_FIELDS.find((f) => n.fields?.[f] !== undefined);
+            if (fallback) {
+              target = fallback;
+            } else {
+              try {
+                await anki("modelFieldAdd", {
+                  modelName: n.modelName,
+                  fieldName: settings.pasteField,
+                });
+                fieldCreatedOn.add(n.modelName);
+              } catch (e) {
+                console.warn("[Qbank→Anki] couldn't add field to", n.modelName, e.message);
+                continue;
+              }
+            }
+          }
+          const existing = n.fields?.[target]?.value || "";
+          const value = existing ? existing + "<br>" + addition : addition;
+          try {
+            await anki("updateNoteFields", {
+              note: { id: n.noteId, fields: { [target]: value } },
+            });
+            pasted++;
+          } catch (e) {
+            console.warn("[Qbank→Anki] paste failed on note", n.noteId, e.message);
+          }
         }
         if (!pasted)
-          pasteError = `none of the notes have a "${settings.pasteField}" field`;
+          pasteError = `couldn't paste into any note (see the extension's console for details)`;
       }
     } catch (e) {
       pasteError = e.message;
