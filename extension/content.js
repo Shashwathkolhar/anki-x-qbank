@@ -243,10 +243,19 @@
         </div>`);
       wireClose();
     };
-    // With a snipped region, delay the spinner so it can't sneak into the
-    // screenshot being captured right now.
-    if (region) setTimeout(showSpinner, 350);
-    else showSpinner();
+    // While searching, the star button itself spins instead of opening a
+    // panel — the panel only appears with results, errors, or confirmations.
+    // (Fallback to the panel spinner when there's no button, e.g. a
+    // popup-triggered run on a site without the floating star.)
+    if (btn) {
+      close();
+      btn.classList.add("qa-loading");
+    } else if (region) {
+      // Delay so the spinner can't sneak into the screenshot being captured.
+      setTimeout(showSpinner, 350);
+    } else {
+      showSpinner();
+    }
 
     const text = getPageText();
     // A screenshot is sent for snips and on YouTube, so thin page text is
@@ -436,6 +445,7 @@
     };
     } finally {
       running = false;
+      btn?.classList.remove("qa-loading");
     }
   }
 
