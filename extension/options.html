@@ -96,10 +96,16 @@
   <label class="head" for="model">Claude model for reading and answering</label>
   <select id="model">
     <option value="claude-haiku-4-5-20251001">Haiku — fastest and cheapest, misses hard questions sometimes</option>
-    <option value="claude-sonnet-5">Sonnet — much better clinical reasoning (recommended)</option>
-    <option value="claude-opus-5">Opus — strongest, a few cents per question</option>
+    <option value="claude-sonnet-5">Sonnet 5 — strong reasoning at low cost</option>
+    <option value="claude-opus-5">Opus 5 — strongest (recommended for exam-critical accuracy)</option>
+    <option value="claude-opus-4-8">Opus 4.8 — older, same price as Opus 5</option>
+    <option value="claude-opus-4-7">Opus 4.7 — older, same price as Opus 5</option>
   </select>
   <div class="hint">Card matching always runs on the cheap model, so a smarter choice here only raises the cost of the answering step.</div>
+
+  <label class="head" for="customModel">Custom Claude model ID (optional)</label>
+  <input type="text" id="customModel" placeholder="e.g. claude-opus-4-6">
+  <div class="hint">Overrides the dropdown when filled. Leave empty normally.</div>
 
   <label class="head" for="openaiKey">OpenAI API key</label>
   <input type="password" id="openaiKey" placeholder="sk-...">

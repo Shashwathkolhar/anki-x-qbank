@@ -9,6 +9,7 @@ const DEFAULTS = {
   githubKey: "",
   githubModel: "openai/gpt-4o",
   model: "claude-haiku-4-5-20251001",
+  customModel: "",
   deck: "",
   tag: "qbank",
   prefetch: true,
@@ -33,6 +34,7 @@ async function load() {
   $("githubKey").value = s.githubKey;
   $("githubModel").value = s.githubModel;
   $("model").value = s.model;
+  $("customModel").value = s.customModel;
   $("tag").value = s.tag;
   $("prefetch").checked = !!s.prefetch;
   $("pasteShot").checked = !!s.pasteShot;
@@ -60,6 +62,7 @@ $("save").addEventListener("click", async () => {
     githubKey: $("githubKey").value.trim(),
     githubModel: $("githubModel").value.trim() || "openai/gpt-4o",
     model: $("model").value,
+    customModel: $("customModel").value.trim(),
     deck: $("deck").value,
     tag: $("tag").value.trim(),
     prefetch: $("prefetch").checked,

@@ -20,6 +20,7 @@ async function getSettings() {
     githubKey: "",
     githubModel: "openai/gpt-4o",
     model: DEFAULT_MODEL,
+    customModel: "",
     deck: "",
     tag: "qbank",
     prefetch: true,
@@ -60,7 +61,7 @@ function supportsPrefill(model) {
 }
 
 async function claude(settings, system, userText, maxTokens = 1500, imageB64 = null, modelOverride = null) {
-  const model = modelOverride || settings.model || DEFAULT_MODEL;
+  const model = modelOverride || settings.customModel || settings.model || DEFAULT_MODEL;
   const prefill = supportsPrefill(model);
   const userContent = imageB64
     ? [
@@ -86,6 +87,9 @@ async function claude(settings, system, userText, maxTokens = 1500, imageB64 = n
       // Thinking-enabled models (Sonnet/Opus) spend output tokens on
       // reasoning before the JSON, so give them room.
       max_tokens: prefill ? maxTokens : Math.max(maxTokens, 6000),
+      // Sonnet/Opus: reason before answering. Opus 5 does this by default,
+      // but 4.7/4.8 run thinking-off unless asked — ask explicitly.
+      ...(prefill ? {} : { thinking: { type: "adaptive" } }),
       system,
       messages,
     }),
@@ -163,7 +167,7 @@ function modelCacheTag(s) {
   if (s.mode === "basic") return "basic";
   if (s.provider === "github") return "gh:" + s.githubModel;
   if (s.provider === "openai") return "oa:" + s.openaiModel;
-  return s.model;
+  return s.customModel || s.model;
 }
 
 // ---------- screenshot (for video-based questions, e.g. YouTube) ----------
@@ -329,7 +333,9 @@ You are given the raw visible text of a qbank question page (question stem, answ
 
 Return {"answer": "", "facts": [], "searches": []} ONLY if the content clearly contains no medical subject matter at all (e.g. a homepage, settings page, or unrelated video). When in doubt, extract — a partial question stem is enough to work with.
 
-First, work through the differential. If the question includes an image (x-ray, CT, ECG, photo), make the FIRST entry of "differential" a one-line description of what the image actually shows. Then write one short line per answer choice, weighing it against the specific clinical details (age, timeline, exam, labs, imaging). QUOTE the stem's exact words for key findings (rash character, lab values, imaging) — never substitute the classic textbook finding for what the stem actually says; a reworded finding is how the wrong answer wins. Only after weighing every choice, commit to the single best answer. If an explanation is present in the text, it settles the answer — use it.
+First, work through the differential. If the question includes an image (x-ray, CT, ECG, photo), make the FIRST entry of "differential" a one-line description of what the image actually shows. Then write one short line per answer choice, weighing it against the specific clinical details (age, timeline, exam, labs, imaging). QUOTE the stem's exact words for key findings (rash character, lab values, imaging) — never substitute the classic textbook finding for what the stem actually says; a reworded finding is how the wrong answer wins.
+
+Patient AGE (and sex) is a first-class discriminator: state the patient's age explicitly and check it against each choice's typical age range. When findings conflict, epidemiology usually outweighs one absent classic risk factor — e.g. a 13-year-old with hip/knee pain is SCFE-age even with normal BMI, while Legg-Calvé-Perthes belongs to ages 4-8. Board questions are built on exactly this trap. Only after weighing every choice, commit to the single best answer. If an explanation is present in the text, it settles the answer — use it.
 
 Then identify the specific facts this question tests. Put facts about the CORRECT answer and the main teaching point first, then one or two facts about the most important distractor choices. For each fact, produce search terms likely to appear on the matching Anki cards — correct-answer terms first. Use standard medical terminology and include synonyms/alternate names (generic drug names, both eponym and descriptive names, etc.). Each term should be 1-3 words.
 
@@ -444,7 +450,7 @@ async function findMatches(pageText, imageB64 = null) {
       ? settings.githubModel || "openai/gpt-4o"
       : provider === "openai"
         ? settings.openaiModel || OPENAI_CHEAP_MODEL
-        : settings.model || DEFAULT_MODEL;
+        : settings.customModel || settings.model || DEFAULT_MODEL;
   const keyForProvider =
     provider === "github" ? settings.githubKey : provider === "openai" ? settings.openaiKey : settings.apiKey;
   if (useApi && !keyForProvider) {
