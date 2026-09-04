@@ -337,7 +337,7 @@ First, work through the differential. If the question includes an image (x-ray, 
 
 Patient AGE (and sex) is a first-class discriminator: state the patient's age explicitly and check it against each choice's typical age range. When findings conflict, epidemiology usually outweighs one absent classic risk factor — e.g. a 13-year-old with hip/knee pain is SCFE-age even with normal BMI, while Legg-Calvé-Perthes belongs to ages 4-8. Board questions are built on exactly this trap. Only after weighing every choice, commit to the single best answer. If an explanation is present in the text, it settles the answer — use it.
 
-Then identify the specific facts this question tests. Put facts about the CORRECT answer and the main teaching point first, then one or two facts about the most important distractor choices. For each fact, produce search terms likely to appear on the matching Anki cards — correct-answer terms first. Use standard medical terminology and include synonyms/alternate names (generic drug names, both eponym and descriptive names, etc.). Each term should be 1-3 words.
+Then identify the specific facts this question tests, using exact board-exam terminology (NBME / First Aid phrasing) for disease and finding names — never loose synonyms. Put facts about the CORRECT answer and the main teaching point first, then one or two facts about the most important distractor choices. For each fact, produce search terms likely to appear on the matching Anki cards — correct-answer terms first. Use standard medical terminology and include synonyms/alternate names (generic drug names, both eponym and descriptive names, etc.). Each term should be 1-3 words.
 
 If given an image that contains significant non-question content (a person/webcam, channel art, decorations), also return "crop_boxes": up to two tight bounding boxes — the first around the question stem text, the second around the answer options — each as [x, y, width, height] in PERCENT (0-100) of the image dimensions. Omit "crop_boxes" or use [] when the image is already mostly question content.
 
@@ -374,6 +374,7 @@ Rules:
 - One concise sentence stating the fact the question tested, with the key answer as the cloze deletion: {{c1::answer}}. Exactly one cloze.
 - Build it from the question's SPECIFIC clues and buzzwords — the exact clinical clue → the diagnosis/mechanism/next step (e.g. "A to-and-fro (continuous machinery) murmur with bounding pulses and wide pulse pressure in an infant indicates {{c1::patent ductus arteriosus (PDA)}}"). Not a generic textbook line.
 - Under 35 words. Plain text, no HTML.
+- Use EXACT board-exam terminology (NBME / First Aid phrasing) for every disease and finding name — never a loose synonym or a mixed label. Example: post-streptococcal GN is "acute proliferative glomerulonephritis" on boards, while "diffuse proliferative glomerulonephritis" signals lupus nephritis; conflating them makes a harmful card. If unsure of the exam's standard term, use the plain clinical name (e.g. "post-streptococcal glomerulonephritis") rather than guessing a histology label.
 - Also write "extra": 1-2 sentences of explanation (why, or the mechanism).
 
 Respond with ONLY this JSON, no other text:
