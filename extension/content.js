@@ -311,6 +311,7 @@
           <button class="qa-x" id="qa-close">✕</button></div>
         <div class="qa-body">
           ${answerHtml}
+          ${whyWrongHtml(res.whyWrong)}
           <p><strong>${noQuestion ? "Couldn't read a question here." : "No suspended cards matched."}</strong></p>
           <p class="qa-muted">${
             noQuestion
@@ -360,6 +361,7 @@
       <div class="qa-body">
         ${answerHtml}
         ${factsHtml(facts)}
+        ${whyWrongHtml(res.whyWrong)}
         <label class="qa-selectall">
           <input type="checkbox" id="qa-select-all">
           Select everything
@@ -536,6 +538,12 @@
     if (!facts.length) return "";
     return `<details class="qa-facts"><summary>Facts detected (${facts.length})</summary>
       <ul>${facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul></details>`;
+  }
+
+  function whyWrongHtml(list) {
+    if (!list?.length) return "";
+    return `<details class="qa-facts"><summary>Why the other options are wrong (${list.length})</summary>
+      <ul>${list.map((f) => `<li>${esc(f)}</li>`).join("")}</ul></details>`;
   }
 
   function renderError(message) {

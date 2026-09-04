@@ -341,10 +341,13 @@ Then identify the specific facts this question tests, using exact board-exam ter
 
 If given an image that contains significant non-question content (a person/webcam, channel art, decorations), also return "crop_boxes": up to two tight bounding boxes — the first around the question stem text, the second around the answer options — each as [x, y, width, height] in PERCENT (0-100) of the image dimensions. Omit "crop_boxes" or use [] when the image is already mostly question content.
 
+Also fill "why_wrong": one entry per INCORRECT answer choice — a concise, high-yield line on why it does not fit THIS stem, citing the stem's specifics (age, timing, labs, imaging), e.g. "Kostmann syndrome — neutropenia would be persistent from infancy, not cycling every 21 days". These are the facts a student should retain about the distractors.
+
 Respond with ONLY this JSON, no other text (differential MUST come first):
 {
   "differential": ["<choice> — <one-line for/against>", ...],
   "answer": "<the correct answer choice> — <justification under 15 words>",
+  "why_wrong": ["<wrong choice> — <why it fails this stem>", ...],
   "facts": ["<concise statement of each tested fact>", ...],
   "searches": [["term", "synonym", ...], ...],
   "crop_boxes": [[x, y, w, h], ...]
@@ -468,6 +471,7 @@ async function findMatches(pageText, imageB64 = null) {
   let facts = [];
   let searches = [];
   let regions = [];
+  let whyWrong = [];
 
   if (useApi) {
     // Stage 1: extract facts and searches. If Claude lazily returns an empty
@@ -498,6 +502,7 @@ async function findMatches(pageText, imageB64 = null) {
     answer = extracted.answer || "";
     facts = extracted.facts || [];
     searches = extracted.searches || [];
+    whyWrong = extracted.why_wrong || [];
     // Crop boxes for a clean question-only paste image (percent units).
     regions = (extracted.crop_boxes || []).filter(
       (b) => Array.isArray(b) && b.length === 4 && b.every((n) => typeof n === "number")
@@ -509,7 +514,7 @@ async function findMatches(pageText, imageB64 = null) {
   }
   console.log("[Qbank→Anki] mode:", settings.mode, "| answer:", answer, "| facts:", facts, "| crop boxes:", regions);
   if (!searches.length)
-    return { answer, facts, regions, model: modelUsed, candidates: [], debug: { notesFound: 0 } };
+    return { answer, facts, whyWrong, regions, model: modelUsed, candidates: [], debug: { notesFound: 0 } };
 
   // Run the Anki searches in parallel (suspended cards only, optional deck restriction).
   const termSets = searches
@@ -557,7 +562,7 @@ async function findMatches(pageText, imageB64 = null) {
   // can't be mistaken for "the deck missed this topic".
   const awakeIds = (await runSearches("-is:suspended", deckClause)).slice(0, 15);
   if (!noteIds.length && !awakeIds.length)
-    return { answer, facts, regions, model: modelUsed, candidates: [], debug: { notesFound: 0 } };
+    return { answer, facts, whyWrong, regions, model: modelUsed, candidates: [], debug: { notesFound: 0 } };
 
   const suspendedSlice = noteIds.slice(0, MAX_CANDIDATES);
   const awakeSet = new Set(awakeIds);
@@ -573,6 +578,7 @@ async function findMatches(pageText, imageB64 = null) {
     return {
       answer,
       facts,
+      whyWrong,
       regions,
       model: modelUsed,
       candidates: numbered
@@ -626,7 +632,7 @@ async function findMatches(pageText, imageB64 = null) {
     (c.group === "answer" ? 0 : 12) + (c.already ? 4 : 0) + (confRank[c.confidence] ?? 1);
   candidates.sort((a, b) => rank(a) - rank(b));
 
-  return { answer, facts, regions, model: modelUsed, candidates, debug: { notesFound: noteIds.length } };
+  return { answer, facts, whyWrong, regions, model: modelUsed, candidates, debug: { notesFound: noteIds.length } };
 }
 
 function escapeHtml(s) {
