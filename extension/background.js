@@ -341,7 +341,7 @@ Then identify the specific facts this question tests, using exact board-exam ter
 
 If given an image that contains significant non-question content (a person/webcam, channel art, decorations), also return "crop_boxes": up to two tight bounding boxes — the first around the question stem text, the second around the answer options — each as [x, y, width, height] in PERCENT (0-100) of the image dimensions. Omit "crop_boxes" or use [] when the image is already mostly question content.
 
-Also fill "why_wrong": one entry per INCORRECT answer choice — a concise, high-yield line on why it does not fit THIS stem, citing the stem's specifics (age, timing, labs, imaging), e.g. "Kostmann syndrome — neutropenia would be persistent from infancy, not cycling every 21 days". These are the facts a student should retain about the distractors.
+Also fill "why_wrong": one entry per INCORRECT answer choice — a concise, high-yield line on why it does not fit THIS stem, citing the stem's specifics (age, timing, labs, imaging), e.g. "Kostmann syndrome — neutropenia would be persistent from infancy, not cycling every 21 days". When the choice is a test, procedure, or management step, ALSO name the classic NBME scenario where it WOULD be the correct answer, e.g. "Upper GI series — the test for suspected midgut volvulus (bilious vomiting in a neonate); nothing here points to the esophagus or gut". For disease/diagnosis distractors, the why-it-doesn't-fit alone is enough. These are the facts a student should retain about the distractors.
 
 Respond with ONLY this JSON, no other text (differential MUST come first):
 {
