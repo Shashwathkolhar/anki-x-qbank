@@ -899,6 +899,27 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           console.warn("[Qbank→Anki] popup capture failed:", e.message);
         }
         sendResponse({ ok: true, shot, ...(await findMatches(msg.text || "", shot)) });
+      } else if (msg.type === "manualSearch") {
+        // User-typed deck search from the panel's 🔍 — no AI involved.
+        const settings = await getSettings();
+        const q = String(msg.query || "").trim().replace(/"/g, "");
+        const deckClause = settings.deck ? `"deck:${settings.deck}" ` : "";
+        const run = async (clause) => ({
+          susp: (await anki("findNotes", { query: `is:suspended ${clause}"${q}"` })).slice(0, 20),
+          awake: (await anki("findNotes", { query: `-is:suspended ${clause}"${q}"` })).slice(0, 10),
+        });
+        let { susp, awake } = await run(deckClause);
+        if (!susp.length && !awake.length && deckClause) ({ susp, awake } = await run(""));
+        const infos = susp.length || awake.length
+          ? await anki("notesInfo", { notes: [...susp, ...awake] })
+          : [];
+        const awakeSet = new Set(awake);
+        sendResponse({
+          ok: true,
+          candidates: infos
+            .map((n) => ({ noteId: n.noteId, text: noteText(n), already: awakeSet.has(n.noteId) }))
+            .filter((c) => c.text),
+        });
       } else if (msg.type === "makeCard") {
         sendResponse({ ok: true, ...(await makeCard(msg)) });
       } else if (msg.type === "addCard") {

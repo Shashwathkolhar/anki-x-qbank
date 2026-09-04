@@ -107,12 +107,48 @@
 
 #qa-overlay .qa-answer {
   background: #eff6ff;
-  border-left: 3px solid #1a56db;
   border-radius: 6px;
   padding: 7px 10px;
   margin-bottom: 10px;
   font-size: 13px;
   color: #1e3a8a;
+}
+
+#qa-overlay #qa-srchbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+#qa-overlay #qa-srchbar input {
+  flex: 1;
+  padding: 6px 9px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font: 13px/1.4 -apple-system, system-ui, sans-serif;
+  color: #1f2937;
+  background: #fff;
+}
+#qa-overlay #qa-srchbar button,
+#qa-overlay .qa-srch-primary {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #1a56db;
+  color: #fff;
+  font: 600 12.5px/1 -apple-system, system-ui, sans-serif;
+  cursor: pointer;
+}
+#qa-overlay .qa-srch-primary:disabled {
+  opacity: 0.6;
+}
+#qa-overlay #qa-srch-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+#qa-overlay #qa-srch-results .qa-srch-primary {
+  align-self: flex-start;
 }
 
 #qa-snip {

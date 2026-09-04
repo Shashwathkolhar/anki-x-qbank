@@ -366,10 +366,11 @@
         </label>
         <div class="qa-list">${rows}</div>
         ${res.model ? `<p class="qa-muted" style="font-size:11px;margin:8px 0 0">answered by ${esc(modelLabel(res.model))}</p>` : ""}
-        ${MAKE_HTML}
+        <div id="qa-make-area"></div>
       </div>
       <div class="qa-foot">
         <button id="qa-unsuspend" class="qa-primary">Unsuspend selected</button>
+        <button id="qa-make" class="qa-primary">Make a card</button>
         <button id="qa-cancel">Cancel</button>
       </div>`);
     wireClose();
@@ -564,6 +565,104 @@
         if (!running) findMatches(lastRunRegion, true);
       };
     }
+    // And the 🔍 manual deck search.
+    if (head && x && !overlay.querySelector("#qa-srch-btn")) {
+      const s = document.createElement("button");
+      s.className = "qa-x";
+      s.id = "qa-srch-btn";
+      s.title = "Search your Anki deck manually";
+      s.textContent = "🔍";
+      head.insertBefore(s, overlay.querySelector("#qa-refresh") || x);
+      s.onclick = toggleSearchBar;
+    }
+  }
+
+  // ---------- manual deck search (🔍 in the header) ----------
+  // For when the video/explanation mentions a topic the matcher didn't pull
+  // (e.g. "diffuse proliferative glomerulonephritis") — type it, get those
+  // cards straight from Anki, tick, unsuspend.
+
+  function toggleSearchBar() {
+    const body = overlay.querySelector(".qa-body");
+    if (!body) return;
+    const existing = overlay.querySelector("#qa-srchbar");
+    if (existing) {
+      existing.remove();
+      overlay.querySelector("#qa-srch-results")?.remove();
+      return;
+    }
+    const bar = document.createElement("div");
+    bar.id = "qa-srchbar";
+    bar.innerHTML = `
+      <input id="qa-srch-input" placeholder="Search your deck… e.g. diffuse proliferative GN">
+      <button id="qa-srch-go">Search</button>`;
+    body.prepend(bar);
+    const results = document.createElement("div");
+    results.id = "qa-srch-results";
+    bar.after(results);
+    const input = bar.querySelector("#qa-srch-input");
+    input.addEventListener("keydown", (e) => {
+      e.stopPropagation(); // keep site hotkeys (YouTube etc.) out of the input
+      if (e.key === "Enter") go();
+    });
+    input.focus();
+    const go = async () => {
+      const q = input.value.trim();
+      if (q.length < 2) return;
+      results.innerHTML = `<p class="qa-muted">Searching…</p>`;
+      let r;
+      try {
+        r = await chrome.runtime.sendMessage({ type: "manualSearch", query: q });
+      } catch (e) {
+        r = { ok: false, error: e.message };
+      }
+      if (!r?.ok) {
+        results.innerHTML = `<p class="qa-muted">⚠️ ${esc(r?.error || "Unknown error")}</p>`;
+        return;
+      }
+      if (!r.candidates.length) {
+        results.innerHTML = `<p class="qa-muted">Nothing in your deck matches "${esc(q)}".</p>`;
+        return;
+      }
+      results.innerHTML =
+        r.candidates
+          .map((c) =>
+            c.already
+              ? `<div class="qa-row qa-already-row"><span class="qa-done">✓</span>
+                 <span class="qa-card-text">${esc(c.text)}
+                 <small class="qa-muted">already unsuspended — in your rotation</small></span></div>`
+              : `<label class="qa-row"><input type="checkbox" data-note="${c.noteId}" checked>
+                 <span class="qa-card-text">${esc(c.text)}</span></label>`
+          )
+          .join("") +
+        `<button id="qa-srch-unsuspend" class="qa-srch-primary">Unsuspend checked</button>`;
+      results.querySelector("#qa-srch-unsuspend").onclick = async () => {
+        const ids = [...results.querySelectorAll("input:checked")]
+          .map((el) => Number(el.dataset.note))
+          .filter(Number.isFinite);
+        if (!ids.length) return;
+        const b = results.querySelector("#qa-srch-unsuspend");
+        b.disabled = true;
+        b.textContent = "Unsuspending…";
+        let u;
+        try {
+          u = await chrome.runtime.sendMessage({
+            type: "unsuspend",
+            noteIds: ids,
+            shot: lastShot,
+            regions: lastRegions,
+            facts: lastFacts,
+            capture: false,
+          });
+        } catch (e) {
+          u = { ok: false, error: e.message };
+        }
+        results.innerHTML = u?.ok
+          ? `<p class="qa-muted">✅ ${u.cards} card${u.cards === 1 ? "" : "s"} unsuspended${u.pasted ? ` · 📸 pasted to ${esc(u.pasteField)}` : ""}</p>`
+          : `<p class="qa-muted">⚠️ ${esc(u?.error || "Unknown error")}</p>`;
+      };
+    };
+    bar.querySelector("#qa-srch-go").onclick = go;
   }
 
   // ---------- prefetch: warm the cache while you read ----------
